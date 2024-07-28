@@ -31,10 +31,8 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
         };
 
         ws.onmessage = function(event) {
-            console.log("On message", event.data);
             event.target.setMessages(msgs => {
                 const newMessages = [...msgs, event.data];
-                console.log("callback", newMessages);
                 return newMessages;
             });
         };

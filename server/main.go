@@ -4,13 +4,13 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
-	"time"
 
 	"nhooyr.io/websocket"
 	// "nhooyr.io/websocket/wsjson"
@@ -30,11 +30,12 @@ type EventType string
 
 const (
 	EventTypeNewPlayer  = "new-player"
+	EventTypeDisconnect = "disconnect"
 	EventTypeWrongGuess = "wrong-guess"
 	EventTypeValidGuess = "valid-guess"
 	EventTypeLoose      = "loose"
 	EventTypeNewRound   = "new-round"
-    EventTypeEndRound = "end-round"
+	EventTypeEndRound   = "end-round"
 	EventTypeEnd        = "end"
 )
 
@@ -85,6 +86,20 @@ func (l *lobby) broadcast(ctx context.Context, content []byte) error {
 	return nil
 }
 
+func (l *lobby) disconnect(ctx context.Context, player string) error {
+	l.Lock()
+	defer l.Unlock()
+
+    for i, p := range l.players {
+        if p.name == player {
+            l.players = append(l.players[:i], l.players[i+1:]...)
+            break
+        }
+    }
+
+	return l.broadcastJSON(ctx, Event{Type: EventTypeDisconnect, Player: player})
+}
+
 func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn) error {
 	l.Lock()
 	defer l.Unlock()
@@ -106,7 +121,7 @@ func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn
 		event := Event{Type: EventTypeNewPlayer, Player: p.name}
 		encoded, err := json.Marshal(event)
 		if err != nil {
-			return fmt.Errorf("failed toe encode new player event: %w", err)
+			return fmt.Errorf("failed to encode new player event: %w", err)
 		}
 
 		if err := newPlayer.send(ctx, encoded); err != nil {
@@ -174,16 +189,36 @@ func (lm *lobbyManager) join(
 		return
 	}
 
-	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
-	defer cancel()
-
 	if err := lobby.addPlayer(ctx, playerName, conn); err != nil {
 		errOut(w, err.Error(), 400)
 		return
 	}
 
-	for range time.NewTicker(time.Minute).C {
-		log.Printf("Player: %s ping", playerName)
+	defer func() {
+		if err := lobby.disconnect(context.Background(), playerName); err != nil {
+			log.Printf("Failed to notify players from %s disconnecting: %s", playerName, err)
+		}
+	}()
+
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("Player %s disconnected", playerName)
+		default:
+			typ, data, err := conn.Read(ctx)
+			if err != nil {
+				var status websocket.CloseError
+				if errors.As(err, &status) && status.Code == websocket.StatusGoingAway {
+					// Expected just return
+					log.Printf("%s disconnected", playerName)
+					return
+				}
+
+				log.Printf("[ERROR] Reading from websocket for %s: %s", playerName, err)
+				return
+			}
+			log.Printf("Received %s of type %s from %s", data, typ, playerName)
+		}
 	}
 }
 
