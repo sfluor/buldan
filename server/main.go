@@ -8,6 +8,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"strings"
 	"sync"
 	"time"
 
@@ -25,15 +26,27 @@ type player struct {
 	conn *websocket.Conn
 }
 
-func (p *player) notifyNewPlayer(ctx context.Context, name string) error {
-	encoded, err := json.Marshal(map[string]string{"new-player": name})
-	if err != nil {
-		return fmt.Errorf("(marshaling) Error when notifying %s of new player %s", p.name, name)
-	}
+type EventType string
 
-	err = p.conn.Write(ctx, websocket.MessageText, encoded)
-	if err != nil {
-		return fmt.Errorf("(writing) Error when notifying %s of new player %s", p.name, name)
+const (
+	EventTypeNewPlayer  = "new-player"
+	EventTypeWrongGuess = "wrong-guess"
+	EventTypeValidGuess = "valid-guess"
+	EventTypeLoose      = "loose"
+	EventTypeNewRound   = "new-round"
+    EventTypeEndRound = "end-round"
+	EventTypeEnd        = "end"
+)
+
+type Event struct {
+	Type   EventType
+	Player string
+	data   string
+}
+
+func (p *player) send(ctx context.Context, data []byte) error {
+	if err := p.conn.Write(ctx, websocket.MessageText, data); err != nil {
+		return fmt.Errorf("Error while sending %s to %s: %w", data, p.name, err)
 	}
 
 	return nil
@@ -45,6 +58,31 @@ type lobby struct {
 	start   bool
 	id      string
 	players []player
+}
+
+func (l *lobby) broadcastJSON(ctx context.Context, data any) error {
+	encoded, err := json.Marshal(data)
+	if err != nil {
+		return fmt.Errorf("Failed to encode: %+v as JSON: %w", data, err)
+	}
+
+	return l.broadcast(ctx, encoded)
+}
+
+func (l *lobby) broadcast(ctx context.Context, content []byte) error {
+	errs := []string{}
+
+	for _, p := range l.players {
+		if err := p.send(ctx, content); err != nil {
+			errs = append(errs, err.Error())
+		}
+	}
+
+	if len(errs) > 0 {
+		return fmt.Errorf("Failed to broadcast to some users: %s", strings.Join(errs, "|"))
+	}
+
+	return nil
 }
 
 func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn) error {
@@ -61,26 +99,25 @@ func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn
 		}
 	}
 
-	player := player{name: name, conn: conn}
+	newPlayer := player{name: name, conn: conn}
+
 	for _, p := range l.players {
-		if err := p.notifyNewPlayer(ctx, name); err != nil {
-			return err
+
+		event := Event{Type: EventTypeNewPlayer, Player: p.name}
+		encoded, err := json.Marshal(event)
+		if err != nil {
+			return fmt.Errorf("failed toe encode new player event: %w", err)
 		}
 
-		if err := player.notifyNewPlayer(ctx, p.name); err != nil {
+		if err := newPlayer.send(ctx, encoded); err != nil {
 			return err
 		}
 	}
 
-    // Notify the player itself
-		if err := player.notifyNewPlayer(ctx, player.name); err != nil {
-			return err
-		}
+	l.players = append(l.players, newPlayer)
 
-	l.players = append(l.players, player)
-
-
-	return nil
+	// Notify all the players of the new player
+	return l.broadcastJSON(ctx, Event{Type: EventTypeNewPlayer, Player: newPlayer.name})
 }
 
 type lobbyManager struct {
@@ -145,9 +182,9 @@ func (lm *lobbyManager) join(
 		return
 	}
 
-    for range time.NewTicker(time.Minute).C {
-        log.Printf("Player: %s ping", playerName)
-    }
+	for range time.NewTicker(time.Minute).C {
+		log.Printf("Player: %s ping", playerName)
+	}
 }
 
 func main() {
