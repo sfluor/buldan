@@ -1,8 +1,19 @@
 import { useState } from "react";
 import { LOBBY_URL } from "./constants";
+import Button from "./Button";
 
 
 let ws: WebSocket | undefined;
+
+function copyToClipboard(data: string) {
+    navigator.clipboard.writeText(data).then(
+        () => console.log("Successfully copied data to clipboard"),
+        err => {
+            console.error("Failed to copy to clipboard", err);
+            alert("Copy to clipboard failed");
+        }
+    )
+}
 
 
 export default function Lobby({ id, user }: { id: string, user: string }) {
@@ -36,5 +47,8 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
     return <div>
         Hello from lobby: {id}
         {messages.map((msg, idx) => <div key={idx}>{msg}</div>)}
+
+        <Button onClick={() => alert("Not implemented")}>Start game !</Button>
+        <Button secondary onClick={() => copyToClipboard(`${window.location.host}/lobby/${id}`)}>Share lobby !</Button>
     </div>
 }
