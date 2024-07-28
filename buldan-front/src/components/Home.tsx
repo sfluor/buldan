@@ -15,7 +15,7 @@ export default function Home() {
     const createLobby = async () => {
         try {
             const res = await axios.post(`${SERVER_URL}/new-lobby`);
-            setLocation(`/lobby/${res.data.id}`);
+            setLocation(`/lobby/${res.data.id}/${user}`);
         } catch (error) {
             console.error(error);
             alert(`An error occurred ${error}`)

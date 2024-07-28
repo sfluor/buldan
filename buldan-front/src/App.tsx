@@ -9,8 +9,8 @@ function App() {
         <>
             <Switch>
                 <Route path="/"> <Home /> </Route>
-                <Route path="/lobby/:id">
-                    {({ id }) => <Lobby id={id} />}
+                <Route path="/lobby/:id/:user">
+                    {({ id, user }) => <Lobby id={id} user={user} />}
                 </Route>
             </Switch>
         </>

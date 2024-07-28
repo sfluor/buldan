@@ -1,22 +1,40 @@
+import { useState } from "react";
 import { LOBBY_URL } from "./constants";
 
-export default function Lobby({ id }: { id: string }) {
-    const url = `${LOBBY_URL}/${id}`;
 
-    console.log("Creating new websocket to: ", url);
-    const ws = new WebSocket(url);
+let ws: WebSocket | undefined;
 
-    ws.onopen = () => {
-        console.log("Opened WebSocket connection to: ", url)
-        ws.send(JSON.stringify({ "hello": "hi" }));
-    };
 
-    ws.onmessage = function(event) {
-        const json = JSON.parse(event.data);
-        console.log("On message", json);
-    };
+export default function Lobby({ id, user }: { id: string, user: string }) {
+    const url = `${LOBBY_URL}/${id}/${user}`;
+
+    const [messages, setMessages] = useState<string[]>([]);
+
+    if (ws === undefined || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
+        console.log("Recreating new websocket to: ", url, ws);
+        ws = new WebSocket(url);
+
+        ws.onopen = (e) => {
+            console.log("Opened WebSocket connection to: ", url);
+            e.target.send(JSON.stringify({ "hello": "hi" }));
+        };
+
+        ws.onmessage = function(event) {
+            console.log("On message", event.data);
+            event.target.setMessages(msgs => {
+                const newMessages = [...msgs, event.data];
+                console.log("callback", newMessages);
+                return newMessages;
+            });
+        };
+    } else {
+        ws.setMessages = setMessages;
+    }
+
+    console.log("messages", messages);
 
     return <div>
         Hello from lobby: {id}
+        {messages.map((msg, idx) => <div key={idx}>{msg}</div>)}
     </div>
 }
