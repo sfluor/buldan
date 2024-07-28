@@ -1,13 +1,26 @@
 import { useState } from "react"
-import { primaryColorTxt, secondaryColorTxt } from "./constants"
+import { primaryColorTxt, secondaryColorTxt, SERVER_URL } from "./constants"
 import Input from "./Input"
 import Button from "./Button";
+import generateName from "./name_gen";
+import axios from "axios";
+import { useLocation } from "wouter";
 
 
 
 export default function Home() {
+    const [user, setUser] = useState(generateName());
+    const setLocation = useLocation()[1];
 
-    const [user, setUser] = useState("hello");
+    const createLobby = async () => {
+        try {
+            const res = await axios.post(`${SERVER_URL}/new-lobby`);
+            setLocation(`/lobby/${res.data.id}`);
+        } catch (error) {
+            console.error(error);
+            alert(`An error occurred ${error}`)
+        }
+    };
 
     return <div className="flex flex-col items-center gap-y-16">
         <div className="text-5xl subpixel-antialiased font-semibold">
@@ -25,7 +38,7 @@ export default function Home() {
             <span className={primaryColorTxt}>guessing !</span>
         </div>
         <div className="flex flex-row self-center gap-x-12">
-            <Button>New game</Button>
+            <Button onClick={createLobby}>New game</Button>
             <Button secondary>Join game</Button>
         </div>
     </div>

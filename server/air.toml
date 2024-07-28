@@ -1,0 +1,8 @@
+root = "."
+
+[build]
+bin = "./bin/server ../buldan-front/dist/"
+cmd = "go build -o ./bin/server ."
+include_ext = ["go"]
+kill_delay = 0
+send_interrupt = true
