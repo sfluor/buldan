@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { LOBBY_URL } from "./constants";
 import Button from "./Button";
+import ErrrorToast from "./ErrorToast";
 
 
 
@@ -20,6 +21,7 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
 
     const [messages, setMessages] = useState<string[]>([]);
     const ws = useRef<WebSocket | null>(null);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(
         () => {
@@ -41,6 +43,12 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
                 });
             };
 
+            ws.current.onerror = function(event) {
+                setError("An error occurred while connecting to the websocket !");
+                setTimeout(() => setError(null), 5000);
+                console.error(event);
+            }
+
 
             return () => {
                 // Cleanup web socket on unmount;
@@ -60,5 +68,6 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
 
         <Button onClick={() => alert("Not implemented")}>Start game !</Button>
         <Button secondary onClick={() => copyToClipboard(`${window.location.host}/lobby/${id}`)}>Share lobby !</Button>
+        <ErrrorToast error={error} />
     </div>
 }
