@@ -21,16 +21,24 @@ func errOut(w http.ResponseWriter, msg string, code int) {
 	http.Error(w, msg, code)
 }
 
-type player struct {
-	name string
+type Player struct {
+	Name  string
+	Admin bool
+	// Internal
 	conn *websocket.Conn
+}
+
+func (p *Player) event(typ EventType) Event {
+	return Event{
+		Type:   typ,
+		Player: *p,
+	}
 }
 
 type EventType string
 
 const (
-	EventTypeNewPlayer  = "new-player"
-	EventTypeDisconnect = "disconnect"
+	EventTypePlayers    = "players"
 	EventTypeWrongGuess = "wrong-guess"
 	EventTypeValidGuess = "valid-guess"
 	EventTypeLoose      = "loose"
@@ -39,15 +47,27 @@ const (
 	EventTypeEnd        = "end"
 )
 
+type EventPlayers struct {
+	Type    EventType
+	Players []Player
+}
+
+func eventPlayers(players []Player) EventPlayers {
+	return EventPlayers{
+		Type:    EventTypePlayers,
+		Players: players,
+	}
+}
+
 type Event struct {
 	Type   EventType
-	Player string
+	Player Player
 	data   string
 }
 
-func (p *player) send(ctx context.Context, data []byte) error {
+func (p *Player) send(ctx context.Context, data []byte) error {
 	if err := p.conn.Write(ctx, websocket.MessageText, data); err != nil {
-		return fmt.Errorf("Error while sending %s to %s: %w", data, p.name, err)
+		return fmt.Errorf("Error while sending %s to %s: %w", data, p.Name, err)
 	}
 
 	return nil
@@ -58,7 +78,8 @@ type lobby struct {
 
 	start   bool
 	id      string
-	players []player
+	players []Player
+	close   func()
 }
 
 func (l *lobby) broadcastJSON(ctx context.Context, data any) error {
@@ -90,14 +111,28 @@ func (l *lobby) disconnect(ctx context.Context, player string) error {
 	l.Lock()
 	defer l.Unlock()
 
-    for i, p := range l.players {
-        if p.name == player {
-            l.players = append(l.players[:i], l.players[i+1:]...)
-            break
-        }
-    }
+	for i, p := range l.players {
+		if p.Name == player {
+			l.players = append(l.players[:i], l.players[i+1:]...)
 
-	return l.broadcastJSON(ctx, Event{Type: EventTypeDisconnect, Player: player})
+			if len(l.players) == 0 {
+				// No more players let's close the lobby
+				l.close()
+				return nil
+			}
+
+			if p.Admin {
+				// Mark as admin the first player that joined
+				l.players[0].Admin = true
+			}
+
+			// Broadcast the new players
+			return l.broadcastJSON(ctx, eventPlayers(l.players))
+		}
+	}
+
+	return fmt.Errorf("Player %s not found while disconnecting", player)
+
 }
 
 func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn) error {
@@ -109,30 +144,16 @@ func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn
 	}
 
 	for _, p := range l.players {
-		if p.name == name {
+		if p.Name == name {
 			return fmt.Errorf("Player name %s is already taken", name)
 		}
 	}
 
-	newPlayer := player{name: name, conn: conn}
-
-	for _, p := range l.players {
-
-		event := Event{Type: EventTypeNewPlayer, Player: p.name}
-		encoded, err := json.Marshal(event)
-		if err != nil {
-			return fmt.Errorf("failed to encode new player event: %w", err)
-		}
-
-		if err := newPlayer.send(ctx, encoded); err != nil {
-			return err
-		}
-	}
-
+	newPlayer := Player{Name: name, conn: conn, Admin: len(l.players) == 0}
 	l.players = append(l.players, newPlayer)
 
 	// Notify all the players of the new player
-	return l.broadcastJSON(ctx, Event{Type: EventTypeNewPlayer, Player: newPlayer.name})
+	return l.broadcastJSON(ctx, eventPlayers(l.players))
 }
 
 type lobbyManager struct {
@@ -162,7 +183,13 @@ func (lm *lobbyManager) create() string {
 	defer lm.Unlock()
 
 	id := lm.nextGameID()
-	lm.instances[id] = &lobby{id: id}
+	lm.instances[id] = &lobby{id: id, close: func() {
+		lm.Lock()
+		defer lm.Unlock()
+
+		delete(lm.instances, id)
+		log.Printf("Closed lobby instance: %s", id)
+	}}
 
 	return id
 }
@@ -208,9 +235,9 @@ func (lm *lobbyManager) join(
 			typ, data, err := conn.Read(ctx)
 			if err != nil {
 				var status websocket.CloseError
-				if errors.As(err, &status) && status.Code == websocket.StatusGoingAway {
+				if errors.As(err, &status) && (status.Code == websocket.StatusGoingAway || status.Code == websocket.StatusNormalClosure){
 					// Expected just return
-					log.Printf("%s disconnected", playerName)
+                    log.Printf("%s disconnected status: %+v", playerName, status)
 					return
 				}
 

@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { LOBBY_URL } from "./constants";
 import Button from "./Button";
 
 
-let ws: WebSocket | undefined;
 
 function copyToClipboard(data: string) {
     navigator.clipboard.writeText(data).then(
@@ -20,25 +19,38 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
     const url = `${LOBBY_URL}/${id}/${user}`;
 
     const [messages, setMessages] = useState<string[]>([]);
+    const ws = useRef<WebSocket | null>(null);
 
-    if (ws === undefined || ws.readyState === WebSocket.CLOSING || ws.readyState === WebSocket.CLOSED) {
-        console.log("Recreating new websocket to: ", url, ws);
-        ws = new WebSocket(url);
+    useEffect(
+        () => {
+            console.log("Creating new websocket to: ", url, ws);
+            // Technically this is only ran once but in debug mode it can be run
+            // twice that's why we check that it's not already initialized.
+            if (ws.current == null || (ws.current.readyState != WebSocket.OPEN && ws.current.readyState != WebSocket.CONNECTING)) {
+                ws.current = new WebSocket(url);
+            }
+            ws.current.onopen = (e) => {
+                console.log("Opened WebSocket connection to: ", url);
+                (e.target as WebSocket).send(JSON.stringify({ "hello": "hi" }));
+            };
 
-        ws.onopen = (e) => {
-            console.log("Opened WebSocket connection to: ", url);
-            e.target.send(JSON.stringify({ "hello": "hi" }));
-        };
+            ws.current.onmessage = function(event) {
+                setMessages(msgs => {
+                    const newMessages = [...msgs, event.data];
+                    return newMessages;
+                });
+            };
 
-        ws.onmessage = function(event) {
-            event.target.setMessages(msgs => {
-                const newMessages = [...msgs, event.data];
-                return newMessages;
-            });
-        };
-    } else {
-        ws.setMessages = setMessages;
-    }
+
+            return () => {
+                // Cleanup web socket on unmount;
+                console.log("ws.current", ws);
+                if (ws.current) {
+                    ws.current.close(1000, "Going away");
+                }
+            }
+        }
+        , [])
 
     console.log("messages", messages);
 
