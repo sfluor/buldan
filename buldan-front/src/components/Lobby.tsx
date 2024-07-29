@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { LOBBY_URL } from "./constants";
+import { LOBBY_URL, primaryColorTxt, secondaryColorTxt } from "./constants";
 import Button from "./Button";
-import ErrrorToast from "./ErrorToast";
-
+import Toast from "./Toast";
+import { useLocation } from "wouter";
 
 
 function copyToClipboard(data: string) {
@@ -16,20 +16,39 @@ function copyToClipboard(data: string) {
 }
 
 
+interface Player {
+    Name: string
+    Admin: boolean
+}
+
+interface Notification {
+    message: string
+    error?: boolean
+}
+
 export default function Lobby({ id, user }: { id: string, user: string }) {
-    const url = `${LOBBY_URL}/${id}/${user}`;
-
-    const [messages, setMessages] = useState<string[]>([]);
+    const [players, setPlayers] = useState<Player[]>([]);
     const ws = useRef<WebSocket | null>(null);
-    const [error, setError] = useState<string | null>(null);
+    const [notif, setNotif] = useState<Notification | null>(null);
 
+    const setLocation = useLocation()[1];
     useEffect(
         () => {
-            console.log("Creating new websocket to: ", url, ws);
+            const url = `${LOBBY_URL}/${id}/${user}`;
+
+            const notifAndRedirect = (notif: Notification) => {
+                setNotif(notif);
+                setTimeout(() => {
+                    setNotif(null);
+                    setLocation("/");
+                }, 5000);
+            }
+
             // Technically this is only ran once but in debug mode it can be run
             // twice that's why we check that it's not already initialized.
             if (ws.current == null || (ws.current.readyState != WebSocket.OPEN && ws.current.readyState != WebSocket.CONNECTING)) {
                 ws.current = new WebSocket(url);
+                console.log("Creating new websocket to: ", url, ws);
             }
             ws.current.onopen = (e) => {
                 console.log("Opened WebSocket connection to: ", url);
@@ -37,37 +56,39 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
             };
 
             ws.current.onmessage = function(event) {
-                setMessages(msgs => {
-                    const newMessages = [...msgs, event.data];
-                    return newMessages;
-                });
+                const json = JSON.parse(event.data);
+                if (json.Type === "players") {
+                    setPlayers(json.Players);
+                } else {
+                    notifAndRedirect({ message: `Unknown payload received: ${event.data}`, error: true });
+                }
             };
 
-            ws.current.onerror = function(event) {
-                setError("An error occurred while connecting to the websocket !");
-                setTimeout(() => setError(null), 5000);
-                console.error(event);
+            ws.current.onclose = function(event) {
+                console.warn("Closed websocket", event);
+                if (notif === null) {
+                    notifAndRedirect({ message: `An error occurred: ${event.reason}. Redirecting back home...`, error: true });
+                }
             }
 
 
             return () => {
                 // Cleanup web socket on unmount;
-                console.log("ws.current", ws);
                 if (ws.current) {
+                    console.log("Closing websocket connection", ws);
                     ws.current.close(1000, "Going away");
                 }
             }
         }
-        , [])
-
-    console.log("messages", messages);
+        , [notif])
 
     return <div>
         Hello from lobby: {id}
-        {messages.map((msg, idx) => <div key={idx}>{msg}</div>)}
+
+        {players.map(({ Name, Admin }, idx) => <div key={idx} className={Name === user ? `${primaryColorTxt} font-semibold` : secondaryColorTxt}>{`${Name == user ? "> " : ""}${Name}${Admin ? " (admin)" : ""}`}</div>)}
 
         <Button onClick={() => alert("Not implemented")}>Start game !</Button>
         <Button secondary onClick={() => copyToClipboard(`${window.location.host}/lobby/${id}`)}>Share lobby !</Button>
-        <ErrrorToast error={error} />
+        {notif && <Toast message={notif.message} error={notif.error} />}
     </div>
 }

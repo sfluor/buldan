@@ -21,6 +21,13 @@ func errOut(w http.ResponseWriter, msg string, code int) {
 	http.Error(w, msg, code)
 }
 
+func errOutWS(c *websocket.Conn, msg string, code websocket.StatusCode) {
+    log.Printf("[ERROR:WS] Code:%d | %s", code, msg)
+    if err := c.Close(code, msg); err != nil {
+        log.Printf("Failed to close websocket: %s", err)
+    }
+}
+
 type Player struct {
 	Name  string
 	Admin bool
@@ -208,16 +215,17 @@ func (lm *lobbyManager) join(
 	lobbyID string,
 	playerName string,
 	conn *websocket.Conn) {
-	defer conn.Close(websocket.StatusNormalClosure, "")
 
 	lobby, found := lm.get(lobbyID)
 	if !found {
-		errOut(w, fmt.Sprintf("No lobby exist with id: %s", lobbyID), 404)
+        // Not internal technically but...
+		errOutWS(conn, fmt.Sprintf("No lobby exist with id: %s", lobbyID), websocket.StatusInternalError)
 		return
 	}
 
+	defer conn.Close(websocket.StatusNormalClosure, "")
 	if err := lobby.addPlayer(ctx, playerName, conn); err != nil {
-		errOut(w, err.Error(), 400)
+		errOutWS(conn, fmt.Sprintf("No lobby exist with id: %s", lobbyID), websocket.StatusInternalError)
 		return
 	}
 
@@ -235,9 +243,9 @@ func (lm *lobbyManager) join(
 			typ, data, err := conn.Read(ctx)
 			if err != nil {
 				var status websocket.CloseError
-				if errors.As(err, &status) && (status.Code == websocket.StatusGoingAway || status.Code == websocket.StatusNormalClosure){
+				if errors.As(err, &status) && (status.Code == websocket.StatusGoingAway || status.Code == websocket.StatusNormalClosure) {
 					// Expected just return
-                    log.Printf("%s disconnected status: %+v", playerName, status)
+					log.Printf("%s disconnected status: %+v", playerName, status)
 					return
 				}
 
