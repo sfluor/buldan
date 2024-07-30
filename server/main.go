@@ -36,13 +36,6 @@ type Player struct {
 	conn *websocket.Conn
 }
 
-func (p *Player) event(typ EventType) Event {
-	return Event{
-		Type:   typ,
-		Player: *p,
-	}
-}
-
 type EventType string
 
 const (
@@ -55,9 +48,26 @@ const (
 	EventTypeEnd        = "end"
 )
 
+type ClientEventType string
+
+const (
+	ClientEventTypeGuess     = "guess"
+	ClientEventTypeStartGame = "start-game"
+)
+
+type EventNewRound struct {
+	Type  EventType
+	Round int
+}
+
 type EventPlayers struct {
 	Type    EventType
 	Players []Player
+}
+
+type ClientEvent struct {
+	Type  ClientEventType
+	Guess string
 }
 
 func eventPlayers(players []Player) EventPlayers {
@@ -65,12 +75,6 @@ func eventPlayers(players []Player) EventPlayers {
 		Type:    EventTypePlayers,
 		Players: players,
 	}
-}
-
-type Event struct {
-	Type   EventType
-	Player Player
-	data   string
 }
 
 func (p *Player) send(ctx context.Context, data []byte) error {
@@ -143,6 +147,19 @@ func (l *lobby) disconnect(ctx context.Context, player string) error {
 
 }
 
+func (l *lobby) isAdmin(name string) bool {
+	l.Lock()
+	defer l.Unlock()
+
+	for _, p := range l.players {
+		if p.Name == name {
+			return p.Admin
+		}
+	}
+
+	return false
+}
+
 func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn) error {
 	l.Lock()
 	defer l.Unlock()
@@ -162,6 +179,22 @@ func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn
 
 	// Notify all the players of the new player
 	return l.broadcastJSON(ctx, eventPlayers(l.players))
+}
+
+func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent) {
+	log.Printf("Received client event: %+v from %s", clientEvent, from)
+
+	switch clientEvent.Type {
+	case ClientEventTypeStartGame:
+		if l.isAdmin(from) {
+			l.broadcastJSON(ctx, EventNewRound{
+				Type:  EventTypeNewRound,
+				Round: 1,
+			})
+		} else {
+			log.Printf("Ignoring start game from %s who's not the admin", from)
+		}
+	}
 }
 
 type lobbyManager struct {
@@ -225,7 +258,10 @@ func (lm *lobbyManager) join(
 	}
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	if err := lobby.addPlayer(ctx, playerName, conn); err != nil {
+
+	// Technically there could be a race condition changing player here if it becomes admin for instance.
+	err := lobby.addPlayer(ctx, playerName, conn)
+	if err != nil {
 		errOutWS(conn, fmt.Sprintf("No lobby exist with id: %s", lobbyID), websocket.StatusInternalError)
 		return
 	}
@@ -241,7 +277,7 @@ func (lm *lobbyManager) join(
 		case <-ctx.Done():
 			log.Printf("Player %s disconnected", playerName)
 		default:
-			typ, data, err := conn.Read(ctx)
+			_, data, err := conn.Read(ctx)
 			if err != nil {
 				var status websocket.CloseError
 				if errors.As(err, &status) && (status.Code == websocket.StatusGoingAway || status.Code == websocket.StatusNormalClosure) {
@@ -253,7 +289,14 @@ func (lm *lobbyManager) join(
 				log.Printf("[ERROR] Reading from websocket for %s: %s", playerName, err)
 				return
 			}
-			log.Printf("Received %s of type %s from %s", data, typ, playerName)
+
+			clientEvent := ClientEvent{}
+			if err := json.Unmarshal(data, &clientEvent); err != nil {
+				log.Printf("[ERROR] Failed to decode client event: %s: %s", data, err)
+				return
+			}
+
+			lobby.handle(ctx, playerName, clientEvent)
 		}
 	}
 }
@@ -270,7 +313,7 @@ func main() {
 
 	fs := http.FileServer(http.Dir(statics))
 
-    // https://stackoverflow.com/a/64687181, routing to SPA
+	// https://stackoverflow.com/a/64687181, routing to SPA
 	srv.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		// If the requested file exists then return if; otherwise return index.html (fileserver default page)
 		if r.URL.Path != "/" {

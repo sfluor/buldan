@@ -31,6 +31,17 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
     const ws = useRef<WebSocket | null>(null);
     const [notif, setNotif] = useState<Notification | null>(null);
 
+
+    const startGame = () => {
+        if (ws.current) {
+            ws.current.send(JSON.stringify({
+                Type: "start-game"
+            }))
+        } else {
+            console.error("web socket isn't initialized yet");
+        }
+    }
+
     const setLocation = useLocation()[1];
     useEffect(
         () => {
@@ -80,14 +91,16 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
                 }
             }
         }
-        , [notif])
+        , [])
+
+    const isAdmin = players.find(player => player.Name === user)?.Admin;
 
     return <div>
         Hello from lobby: {id}
 
         {players.map(({ Name, Admin }, idx) => <div key={idx} className={Name === user ? `${primaryColorTxt} font-semibold` : secondaryColorTxt}>{`${Name == user ? "> " : ""}${Name}${Admin ? " (admin)" : ""}`}</div>)}
 
-        <Button onClick={() => alert("Not implemented")}>Start game !</Button>
+        {isAdmin && <Button onClick={startGame}>Start game !</Button>}
         <Button secondary onClick={() => copyToClipboard(`${window.location.host}/lobby/${id}`)}>Share lobby !</Button>
         {notif && <Toast message={notif.message} error={notif.error} />}
     </div>
