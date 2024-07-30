@@ -9,6 +9,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path"
 	"strings"
 	"sync"
 
@@ -22,10 +23,10 @@ func errOut(w http.ResponseWriter, msg string, code int) {
 }
 
 func errOutWS(c *websocket.Conn, msg string, code websocket.StatusCode) {
-    log.Printf("[ERROR:WS] Code:%d | %s", code, msg)
-    if err := c.Close(code, msg); err != nil {
-        log.Printf("Failed to close websocket: %s", err)
-    }
+	log.Printf("[ERROR:WS] Code:%d | %s", code, msg)
+	if err := c.Close(code, msg); err != nil {
+		log.Printf("Failed to close websocket: %s", err)
+	}
 }
 
 type Player struct {
@@ -218,7 +219,7 @@ func (lm *lobbyManager) join(
 
 	lobby, found := lm.get(lobbyID)
 	if !found {
-        // Not internal technically but...
+		// Not internal technically but...
 		errOutWS(conn, fmt.Sprintf("No lobby exist with id: %s", lobbyID), websocket.StatusInternalError)
 		return
 	}
@@ -262,8 +263,29 @@ func main() {
 	api := http.NewServeMux()
 
 	statics := os.Args[1]
+	listen := ":8080"
+	if len(os.Args) == 3 {
+		listen = os.Args[2]
+	}
 
-	srv.Handle("/", http.FileServer(http.Dir(statics)))
+	fs := http.FileServer(http.Dir(statics))
+
+    // https://stackoverflow.com/a/64687181, routing to SPA
+	srv.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		// If the requested file exists then return if; otherwise return index.html (fileserver default page)
+		if r.URL.Path != "/" {
+			fullPath := statics + strings.TrimPrefix(path.Clean(r.URL.Path), "/")
+			_, err := os.Stat(fullPath)
+			if err != nil {
+				if !os.IsNotExist(err) {
+					errOut(w, "File not found", 404)
+				}
+				// Requested file does not exist so we return the default (resolves to index.html)
+				r.URL.Path = "/"
+			}
+		}
+		fs.ServeHTTP(w, r)
+	})
 
 	srv.Handle("/api/", http.StripPrefix("/api", api))
 
@@ -300,7 +322,7 @@ func main() {
 		manager.join(r.Context(), w, lobbyID, playerName, c)
 	})
 
-	if err := http.ListenAndServe(":8080", srv); err != nil {
+	if err := http.ListenAndServe(listen, srv); err != nil {
 		panic(err)
 	}
 }
