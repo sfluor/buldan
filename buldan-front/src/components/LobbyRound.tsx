@@ -1,14 +1,22 @@
-import { Guess, Player } from "./Lobby";
+import {  RoundState } from "./Lobby";
 
-export default function LobbyRound({ players, guesses, letter, remaining }: { players: Player[], guesses: Guess[], letter: string, remaining: number }) {
+export default function LobbyRound({ round }: { round: RoundState }) {
+
+// TODO: handle failure with notifs
+    if (round === null) {
+        return <> Unexpected round not being initialized </>
+    }
+
+    const {Players, Guesses, Remaining, Letter} = round;
+
     return <>
 
-        <div>Guessing for <b>{letter}</b>, {remaining} remaining to guess </div>
+        <div>Guessing for <b>{Letter}</b>, {Remaining} remaining to guess </div>
 
         <div>Players:</div>
-        {players.map(({ Name }) => <div key={Name}>{Name}</div>)}
+        {Players.map(({ Name }) => <div key={Name}>{Name}</div>)}
 
         <div> Guesses</div>
-        {guesses.map(({ Guess, Player, Correct }) => <div key={Guess + Player}>{Guess} from {Player} {Correct ? "correct" : "wrong"}</div>)}
+        {Guesses.map(({ Guess, Player, Correct }) => <div key={Guess + Player}>{Guess} from {Player} {Correct ? "correct" : "wrong"}</div>)}
     </>
 }

@@ -27,12 +27,19 @@ enum LobbyState {
     BetweenRound,
 }
 
+export interface RoundState {
+    Players: Player[]
+    Guesses: Guess[]
+    Letter: string
+    Remaining: number
+}
+
 export default function Lobby({ id, user }: { id: string, user: string }) {
     const [players, setPlayers] = useState<Player[]>([]);
     const ws = useRef<WebSocket | null>(null);
     const [notif, setNotif] = useState<Notification | null>(null);
-
     const [state, setState] = useState(LobbyState.WaitingRoom);
+    const [round, setRound] = useState<RoundState | null>(null);
 
     const startGame = () => {
         if (ws.current) {
@@ -91,6 +98,7 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
                     setPlayers(json.Players);
                 } else if (json.Type === "new-round") {
                     setState(LobbyState.Round);
+                    setRound(json.Round);
                     console.log("New round", json);
                 } else {
                     notifAndRedirect({ message: `Unknown payload received: ${event.data}`, error: true });
@@ -110,23 +118,7 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
     if (state === LobbyState.WaitingRoom) {
         component = <LobbyWaitRoom players={players} user={user} id={id} startGame={startGame} />
     } else if (state === LobbyState.Round) {
-        component = <LobbyRound players={players} guesses={[
-        {
-            Player: user,
-            Correct: true,
-            Guess: "Algeria"
-        },
-        {
-            Player: user,
-            Correct: false,
-            Guess: "Bulgaria",
-        },
-        {
-            Player: user,
-            Correct: true,
-            Guess: "Armenia"
-        },
-        ]} letter={"A"} remaining={7} />
+        component = <LobbyRound round={round}/>
     } else if (state === LobbyState.BetweenRound) {
         component = <div> Loading... </div>
     } else {

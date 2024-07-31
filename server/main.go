@@ -39,13 +39,12 @@ type Player struct {
 type EventType string
 
 const (
-	EventTypePlayers    = "players"
-	EventTypeWrongGuess = "wrong-guess"
-	EventTypeValidGuess = "valid-guess"
-	EventTypeLoose      = "loose"
-	EventTypeNewRound   = "new-round"
-	EventTypeEndRound   = "end-round"
-	EventTypeEnd        = "end"
+	EventTypePlayers  = "players"
+	EventTypeGuess    = "guess"
+	EventTypeLoose    = "loose"
+	EventTypeNewRound = "new-round"
+	EventTypeEndRound = "end-round"
+	EventTypeEnd      = "end"
 )
 
 type ClientEventType string
@@ -55,9 +54,32 @@ const (
 	ClientEventTypeStartGame = "start-game"
 )
 
-type EventNewRound struct {
+type Round struct {
+	Round   int
+
+	Players []Player
+
+    CurrentPlayerIdx int
+
+	Letter  string // string to ease the conversion to ASCII in JSON
+
+	Guesses []Guess
+
+	// Duplicate it since this one isn't serialized even
+	// though we could infer it from the one below
+	remainingCountries map[Country]struct{}
+	Remaining          int
+}
+
+type EventRound struct {
 	Type  EventType
-	Round int
+	Round Round
+}
+
+type Guess struct {
+	Guess   string
+	Player  string
+	Correct bool
 }
 
 type EventPlayers struct {
@@ -91,7 +113,10 @@ type lobby struct {
 	start   bool
 	id      string
 	players []Player
-	close   func()
+
+	rounds []Round
+
+	close func()
 }
 
 func (l *lobby) broadcastJSON(ctx context.Context, data any) error {
@@ -181,20 +206,49 @@ func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn
 	return l.broadcastJSON(ctx, eventPlayers(l.players))
 }
 
-func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent) {
+func (l *lobby) newRound(ctx context.Context) error {
+	l.Lock()
+	defer l.Unlock()
+
+	letter := 'a'
+	countries, err := countriesStartingWith(byte(letter))
+	if err != nil {
+		return err
+	}
+
+	round := Round{
+		Round:              len(l.rounds) + 1,
+		Letter:             string(letter), // TODO
+        CurrentPlayerIdx: 0, // TODO; random
+		Players:            l.players,
+		Guesses:            []Guess{},
+		Remaining:          len(countries),
+		remainingCountries: countries,
+	}
+
+	l.rounds = append(l.rounds, round)
+
+	return l.broadcastJSON(ctx, EventRound{
+		Type:  EventTypeNewRound,
+		Round: round,
+	})
+}
+
+func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent) error {
 	log.Printf("Received client event: %+v from %s", clientEvent, from)
 
 	switch clientEvent.Type {
 	case ClientEventTypeStartGame:
 		if l.isAdmin(from) {
-			l.broadcastJSON(ctx, EventNewRound{
-				Type:  EventTypeNewRound,
-				Round: 1,
-			})
+			if err := l.newRound(ctx); err != nil {
+				return fmt.Errorf("failed to create new round: %w", err)
+			}
 		} else {
 			log.Printf("Ignoring start game from %s who's not the admin", from)
 		}
 	}
+
+	return nil
 }
 
 type lobbyManager struct {
@@ -296,7 +350,10 @@ func (lm *lobbyManager) join(
 				return
 			}
 
-			lobby.handle(ctx, playerName, clientEvent)
+			if err := lobby.handle(ctx, playerName, clientEvent); err != nil {
+				log.Printf("[ERROR] Failed to handle client event: %s: %s", data, err)
+				return
+			}
 		}
 	}
 }
