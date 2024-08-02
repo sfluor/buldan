@@ -17,6 +17,8 @@ import (
 	// "nhooyr.io/websocket/wsjson"
 )
 
+const guessesPerTurn = 3
+
 func errOut(w http.ResponseWriter, msg string, code int) {
 	log.Printf("[ERROR] Code:%d | %s", code, msg)
 	http.Error(w, msg, code)
@@ -54,12 +56,18 @@ const (
 	ClientEventTypeStartGame = "start-game"
 )
 
+type RoundPlayer struct {
+	Player
+	Lost bool
+}
+
 type Round struct {
 	Round int
 
-	Players []Player
+	Players []RoundPlayer
 
-	CurrentPlayerIndex int
+	CurrentPlayerIndex            int
+	CurrentPlayerRemainingGuesses int
 
 	Letter string // string to ease the conversion to ASCII in JSON
 
@@ -79,6 +87,7 @@ type EventRound struct {
 type Guess struct {
 	Guess   string
 	Player  string
+	Flag    string
 	Correct bool
 }
 
@@ -125,7 +134,7 @@ func (l *lobby) broadcastJSON(ctx context.Context, data any) error {
 		return fmt.Errorf("Failed to encode: %+v as JSON: %w", data, err)
 	}
 
-    log.Printf("[lobby:%s] Broadcasting: %+v", l.id, data)
+	log.Printf("[lobby:%s] Broadcasting: %+v", l.id, data)
 	return l.broadcast(ctx, encoded)
 }
 
@@ -217,14 +226,22 @@ func (l *lobby) newRound(ctx context.Context) error {
 		return err
 	}
 
+	players := make([]RoundPlayer, 0, len(l.players))
+	for _, p := range l.players {
+		players = append(players, RoundPlayer{
+			Player: p,
+		})
+	}
+
 	round := Round{
-		Round:              len(l.rounds) + 1,
-		Letter:             string(letter), // TODO
-		CurrentPlayerIndex: 0,              // TODO; random
-		Players:            l.players,
-		Guesses:            []Guess{},
-		Remaining:          len(countries),
-		remainingCountries: countries,
+		Round:                         len(l.rounds) + 1,
+		Letter:                        string(letter), // TODO
+		CurrentPlayerIndex:            0,              // TODO; random
+		CurrentPlayerRemainingGuesses: guessesPerTurn,
+		Players:                       players,
+		Guesses:                       []Guess{},
+		Remaining:                     len(countries),
+		remainingCountries:            countries,
 	}
 
 	l.rounds = append(l.rounds, &round)
@@ -233,6 +250,28 @@ func (l *lobby) newRound(ctx context.Context) error {
 		Type:  EventTypeNewRound,
 		Round: round,
 	})
+}
+
+func (l *lobby) nextPlayer() (done bool) {
+	round := l.rounds[len(l.rounds)-1]
+
+	start := round.CurrentPlayerIndex
+
+	for {
+		round.CurrentPlayerIndex++
+		if round.CurrentPlayerIndex >= len(round.Players) {
+			round.CurrentPlayerIndex = 0
+		}
+
+		if !round.Players[round.CurrentPlayerIndex].Lost {
+			round.CurrentPlayerRemainingGuesses = guessesPerTurn
+			return false
+		}
+
+		if round.CurrentPlayerIndex == start {
+			return true
+		}
+	}
 }
 
 func (l *lobby) handleGuess(ctx context.Context, from string, guess string) error {
@@ -246,23 +285,28 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 		return fmt.Errorf("Expected %s to play but received guess %s from %s", expectedPlayer, guess, from)
 	}
 
-    log.Printf("Countries: %+v", round.remainingCountries)
-	_, correct := round.remainingCountries[guess]
+	country, correct := round.remainingCountries[guess]
 
 	round.Guesses = append(round.Guesses, Guess{
 		Player:  from,
 		Guess:   guess,
+		Flag:    country.Flag,
 		Correct: correct,
 	})
 
 	if correct {
-		delete(round.remainingCountries, from)
-		round.CurrentPlayerIndex++
-		if round.CurrentPlayerIndex >= len(round.Players) {
-			round.CurrentPlayerIndex = 0
+		delete(round.remainingCountries, guess)
+		round.Remaining = len(round.remainingCountries)
+		l.nextPlayer()
+	} else {
+		round.CurrentPlayerRemainingGuesses--
+		if round.CurrentPlayerRemainingGuesses <= 0 {
+			round.Players[round.CurrentPlayerIndex].Lost = true
+			l.nextPlayer()
 		}
-        round.Remaining--
 	}
+
+	// TODO: time
 
 	// TODO end-round
 	// TODO flag

@@ -8,6 +8,7 @@ import LobbyRound from "./LobbyRound";
 export interface Player {
     Name: string
     Admin: boolean
+    Lost?: boolean
 }
 
 interface Notification {
@@ -33,6 +34,7 @@ export interface RoundState {
     Letter: string
     Remaining: number
     CurrentPlayerIndex: number
+    CurrentPlayerRemainingGuesses: number
 }
 
 export default function Lobby({ id, user }: { id: string, user: string }) {
