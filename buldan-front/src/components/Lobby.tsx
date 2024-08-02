@@ -32,6 +32,7 @@ export interface RoundState {
     Guesses: Guess[]
     Letter: string
     Remaining: number
+    CurrentPlayerIndex: number
 }
 
 export default function Lobby({ id, user }: { id: string, user: string }) {
@@ -41,15 +42,20 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
     const [state, setState] = useState(LobbyState.WaitingRoom);
     const [round, setRound] = useState<RoundState | null>(null);
 
-    const startGame = () => {
+    // (otherwise not happy about the any)
+    // eslint-disable-next-line
+    const send = (content: any) => {
         if (ws.current) {
-            ws.current.send(JSON.stringify({
-                Type: "start-game"
-            }))
+            ws.current.send(JSON.stringify(content))
         } else {
+            // TODO
             console.error("web socket isn't initialized yet");
         }
     }
+
+    const startGame = () => send({ Type: "start-game" });
+
+    const sendGuess = (guess: string) => send({ Type: "guess", Guess: guess });
 
     const url = `${LOBBY_URL}/${id}/${user}`;
     const setLocation = useLocation()[1];
@@ -100,8 +106,11 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
                     setState(LobbyState.Round);
                     setRound(json.Round);
                     console.log("New round", json);
+                } else if (json.Type === "guess") {
+                    setRound(json.Round);
+                    console.log("New round", json);
                 } else {
-                    notifAndRedirect({ message: `Unknown payload received: ${event.data}`, error: true });
+                    notifAndRedirect({ message: `Unknown payload received ${json.Type}: ${event.data}`, error: true });
                 }
             };
 
@@ -118,7 +127,7 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
     if (state === LobbyState.WaitingRoom) {
         component = <LobbyWaitRoom players={players} user={user} id={id} startGame={startGame} />
     } else if (state === LobbyState.Round) {
-        component = <LobbyRound round={round}/>
+        component = <LobbyRound user={user} round={round} sendGuess={sendGuess} />
     } else if (state === LobbyState.BetweenRound) {
         component = <div> Loading... </div>
     } else {

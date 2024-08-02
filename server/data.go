@@ -1,14 +1,7 @@
 package main
 
 import (
-	"bytes"
-	"fmt"
-	"io/ioutil"
 	"strings"
-	"unicode"
-
-	"golang.org/x/text/transform"
-	"golang.org/x/text/unicode/norm"
 )
 
 type Country struct {
@@ -16,28 +9,14 @@ type Country struct {
 	Flag string
 }
 
-func countriesStartingWith(char byte) (map[Country]struct{}, error) {
-	// We could index countries from the get go as well...
-	// https://go.dev/blog/normalization
-	isMn := func(r rune) bool {
-		return unicode.Is(unicode.Mn, r) // Mn: nonspacing marks
-	}
-	t := transform.Chain(norm.NFD, transform.RemoveFunc(isMn), norm.NFC)
-
-	res := make(map[Country]struct{})
+func countriesStartingWith(char byte) (map[string]Country, error) {
+    // TODO normalize country names
+	res := make(map[string]Country)
 
 	for _, country := range countries {
-		// Very costly for what it's doing
-		reader := transform.NewReader(strings.NewReader(country.Name), t)
-		data, err := ioutil.ReadAll(reader)
-		if err != nil {
-			return nil, fmt.Errorf("failed to properly decode country name: %w", err)
-		}
-
-		data = bytes.ToLower(data)
-
-		if data[0] == char {
-            res[country] = struct{}{}
+        countryName := strings.TrimSpace(strings.ToLower(country.Name))
+		if countryName[0] == char {
+			res[countryName] = country
 		}
 	}
 

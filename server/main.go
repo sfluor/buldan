@@ -55,19 +55,19 @@ const (
 )
 
 type Round struct {
-	Round   int
+	Round int
 
 	Players []Player
 
-    CurrentPlayerIdx int
+	CurrentPlayerIndex int
 
-	Letter  string // string to ease the conversion to ASCII in JSON
+	Letter string // string to ease the conversion to ASCII in JSON
 
 	Guesses []Guess
 
 	// Duplicate it since this one isn't serialized even
 	// though we could infer it from the one below
-	remainingCountries map[Country]struct{}
+	remainingCountries map[string]Country
 	Remaining          int
 }
 
@@ -114,7 +114,7 @@ type lobby struct {
 	id      string
 	players []Player
 
-	rounds []Round
+	rounds []*Round
 
 	close func()
 }
@@ -125,6 +125,7 @@ func (l *lobby) broadcastJSON(ctx context.Context, data any) error {
 		return fmt.Errorf("Failed to encode: %+v as JSON: %w", data, err)
 	}
 
+    log.Printf("[lobby:%s] Broadcasting: %+v", l.id, data)
 	return l.broadcast(ctx, encoded)
 }
 
@@ -219,18 +220,56 @@ func (l *lobby) newRound(ctx context.Context) error {
 	round := Round{
 		Round:              len(l.rounds) + 1,
 		Letter:             string(letter), // TODO
-        CurrentPlayerIdx: 0, // TODO; random
+		CurrentPlayerIndex: 0,              // TODO; random
 		Players:            l.players,
 		Guesses:            []Guess{},
 		Remaining:          len(countries),
 		remainingCountries: countries,
 	}
 
-	l.rounds = append(l.rounds, round)
+	l.rounds = append(l.rounds, &round)
 
 	return l.broadcastJSON(ctx, EventRound{
 		Type:  EventTypeNewRound,
 		Round: round,
+	})
+}
+
+func (l *lobby) handleGuess(ctx context.Context, from string, guess string) error {
+	l.Lock()
+	defer l.Unlock()
+
+	round := l.rounds[len(l.rounds)-1]
+
+	expectedPlayer := round.Players[round.CurrentPlayerIndex].Name
+	if expectedPlayer != from {
+		return fmt.Errorf("Expected %s to play but received guess %s from %s", expectedPlayer, guess, from)
+	}
+
+    log.Printf("Countries: %+v", round.remainingCountries)
+	_, correct := round.remainingCountries[guess]
+
+	round.Guesses = append(round.Guesses, Guess{
+		Player:  from,
+		Guess:   guess,
+		Correct: correct,
+	})
+
+	if correct {
+		delete(round.remainingCountries, from)
+		round.CurrentPlayerIndex++
+		if round.CurrentPlayerIndex >= len(round.Players) {
+			round.CurrentPlayerIndex = 0
+		}
+        round.Remaining--
+	}
+
+	// TODO end-round
+	// TODO flag
+
+	return l.broadcastJSON(ctx, EventRound{
+		Type:  EventTypeGuess,
+		Round: *round,
 	})
 }
 
@@ -245,6 +284,10 @@ func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent
 			}
 		} else {
 			log.Printf("Ignoring start game from %s who's not the admin", from)
+		}
+	case ClientEventTypeGuess:
+		if err := l.handleGuess(ctx, from, clientEvent.Guess); err != nil {
+			return fmt.Errorf("failed to handle guess from %s: %s: %w", from, clientEvent.Guess, err)
 		}
 	}
 
