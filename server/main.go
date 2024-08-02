@@ -219,11 +219,8 @@ func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn
 	return l.broadcastJSON(ctx, eventPlayers(l.players))
 }
 
-func (l *lobby) newRound(ctx context.Context) error {
-	l.Lock()
-	defer l.Unlock()
-
-    // TODO Careful of too many rounds
+func (l *lobby) newRoundUnsafe(ctx context.Context) error {
+	// TODO Careful of too many rounds
 	letter := l.letters[len(l.rounds)]
 	countries, err := countriesStartingWith(byte(letter))
 	if err != nil {
@@ -254,6 +251,12 @@ func (l *lobby) newRound(ctx context.Context) error {
 		Type:  EventTypeNewRound,
 		Round: round,
 	})
+}
+
+func (l *lobby) newRound(ctx context.Context) error {
+	l.Lock()
+	defer l.Unlock()
+	return l.newRoundUnsafe(ctx)
 }
 
 func (l *lobby) nextPlayer() (done bool) {
@@ -289,6 +292,7 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 		return fmt.Errorf("Expected %s to play but received guess %s from %s", expectedPlayer, guess, from)
 	}
 
+	guess = strings.ToLower(guess)
 	country, correct := round.remainingCountries[guess]
 
 	round.Guesses = append(round.Guesses, Guess{
@@ -301,6 +305,9 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 	if correct {
 		delete(round.remainingCountries, guess)
 		round.Remaining = len(round.remainingCountries)
+		if round.Remaining == 0 {
+			return l.newRoundUnsafe(ctx)
+		}
 		l.nextPlayer()
 	} else {
 		round.CurrentPlayerRemainingGuesses--
@@ -310,6 +317,7 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 		}
 	}
 
+	// TODO: hints
 	// TODO: time
 
 	// TODO end-round
@@ -382,6 +390,7 @@ func newLetters() []byte {
 		letters[i], letters[j] = letters[j], letters[i]
 	})
 
+	letters[0] = 'y'
 	return letters
 }
 
