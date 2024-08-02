@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	mrand "math/rand"
 	"net/http"
 	"os"
 	"path"
@@ -125,6 +126,8 @@ type lobby struct {
 
 	rounds []*Round
 
+	letters []byte
+
 	close func()
 }
 
@@ -220,7 +223,8 @@ func (l *lobby) newRound(ctx context.Context) error {
 	l.Lock()
 	defer l.Unlock()
 
-	letter := 'a'
+    // TODO Careful of too many rounds
+	letter := l.letters[len(l.rounds)]
 	countries, err := countriesStartingWith(byte(letter))
 	if err != nil {
 		return err
@@ -360,18 +364,41 @@ func (lm *lobbyManager) nextGameID() string {
 	}
 }
 
+func newLetters() []byte {
+	letters := []byte{}
+	seen := map[byte]struct{}{}
+
+	for _, country := range countries {
+		letter := strings.ToLower(country.Name)[0]
+		if _, ok := seen[letter]; ok {
+			continue
+		}
+
+		seen[letter] = struct{}{}
+		letters = append(letters, letter)
+	}
+
+	mrand.Shuffle(len(letters), func(i, j int) {
+		letters[i], letters[j] = letters[j], letters[i]
+	})
+
+	return letters
+}
+
 func (lm *lobbyManager) create() string {
 	lm.Lock()
 	defer lm.Unlock()
 
 	id := lm.nextGameID()
-	lm.instances[id] = &lobby{id: id, close: func() {
-		lm.Lock()
-		defer lm.Unlock()
+	lm.instances[id] = &lobby{id: id,
+		letters: newLetters(),
+		close: func() {
+			lm.Lock()
+			defer lm.Unlock()
 
-		delete(lm.instances, id)
-		log.Printf("Closed lobby instance: %s", id)
-	}}
+			delete(lm.instances, id)
+			log.Printf("Closed lobby instance: %s", id)
+		}}
 
 	return id
 }
