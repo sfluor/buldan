@@ -8,10 +8,10 @@ const secondaryClass = `${secondaryColor} hover:bg-orange-300 border-orange-700 
 const primaryButton = `${buttonBaseClass} ${primaryClass}`
 const secondaryButton = `${buttonBaseClass} ${secondaryClass}`
 
-function Button({ children, secondary, onClick }: { children?: React.ReactNode, secondary?: boolean | undefined, onClick?: () => void }) {
+function Button({ children, secondary, onClick, className }: { children?: React.ReactNode, secondary?: boolean | undefined, onClick?: () => void, className?: string }) {
     return <button
         onClick={onClick}
-        className={secondary ? secondaryButton : primaryButton}
+        className={`${secondary ? secondaryButton : primaryButton} ${className}`}
     >
         {children}
     </button>

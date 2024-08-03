@@ -23,7 +23,7 @@ export default function LobbyWaitRoom({ players, user, shareUrl, startGame }: { 
     return <>
         <PlayerBoxes players={players} current={currentPlayer} user={user} />
 
-        {isAdmin && <Button onClick={startGame}>Start game !</Button>}
+        {isAdmin && <Button className="mr-4" onClick={startGame}>Start game !</Button>}
         <Button secondary onClick={() => copyToClipboard(shareUrl)}>Share lobby !</Button>
     </>
 }

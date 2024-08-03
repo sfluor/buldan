@@ -138,7 +138,7 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
         component = <div> Unexpected lobby state ! </div>
     }
 
-    return <div>
+    return <div className="p-4">
         <LobbyHeader shareUrl={shareUrl} id={id} />
 
         {component}
@@ -148,5 +148,5 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
 }
 
 function LobbyHeader({ id, shareUrl }: { id: string, shareUrl: string }) {
-    return <div className="p-4 m-4 text-lg bg-orange-100 rounded-md"> <a className="font-medium text-blue-600 dark:text-blue-500 hover:underline" href={shareUrl} target="_blank"> Lobby {id}</a></div>
+    return <div className="p-4 my-4 text-lg bg-orange-100 rounded-md"> <a className="font-medium text-blue-600 dark:text-blue-500 hover:underline" href={shareUrl} target="_blank"> Lobby {id}</a></div>
 }

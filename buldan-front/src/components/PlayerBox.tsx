@@ -18,7 +18,7 @@ export default function PlayerBox({ isUser, isPlaying, player: { Name, Admin, Lo
         prefix = `👑 ${prefix}`;
     }
 
-    className = `p-2 m-4 outline outline-offset-2 rounded max-w-64 ${className}`
+    className = `p-2 my-6 outline outline-offset-2 ${isPlaying ? 'animate-bounce outline-4' : 'outline-1'} rounded max-w-64 ${className}`
 
     return <div className={className}>{`${prefix}${Name}`}</div>
 }
