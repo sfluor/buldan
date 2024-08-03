@@ -4,6 +4,7 @@ import Toast from "./Toast";
 import { useLocation } from "wouter";
 import LobbyWaitRoom from "./LobbyWaitRoom";
 import LobbyRound from "./LobbyRound";
+import BuldanText from "./BuldanText";
 
 export interface Player {
     Name: string
@@ -139,6 +140,7 @@ export default function Lobby({ id, user }: { id: string, user: string }) {
     }
 
     return <div className="p-4">
+    <BuldanText />
         <LobbyHeader shareUrl={shareUrl} id={id} />
 
         {component}

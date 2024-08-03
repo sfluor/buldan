@@ -5,6 +5,7 @@ import Button from "./Button";
 import generateName from "./name_gen";
 import axios from "axios";
 import { useLocation } from "wouter";
+import BuldanText from "./BuldanText";
 
 
 
@@ -23,10 +24,7 @@ export default function Home() {
     };
 
     return <div className="flex flex-col items-center gap-y-16">
-        <div className="text-5xl subpixel-antialiased font-semibold">
-            <span className={secondaryColorTxt}>Bul</span>
-            <span className={primaryColorTxt}>dan</span>
-        </div>
+        <BuldanText />
         <div className="text-2xl items-center">
             <span className={primaryColorTxt}>Welcome to</span>
             <br />

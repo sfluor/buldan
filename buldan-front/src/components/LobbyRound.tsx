@@ -3,6 +3,7 @@ import Input from "./Input";
 import { RoundState } from "./Lobby";
 import Button from "./Button";
 import PlayerBoxes from "./PlayerBoxes";
+import GuessBoxes from "./GuessBoxes";
 
 export default function LobbyRound({ user, round, sendGuess }: { user: string, round: RoundState | null, sendGuess: (guess: string) => void }) {
 
@@ -20,16 +21,16 @@ export default function LobbyRound({ user, round, sendGuess }: { user: string, r
     const isPlaying = currentPlayer === user;
 
     return <>
-        <div>Guessing for <b>{Letter}</b>, {Remaining} remaining to guess, {CurrentPlayerRemainingGuesses} attempts remaining </div>
+        <div>Countries starting with <b className="text-2xl capitalize">{Letter}</b>, {Remaining} remaining to guess, {CurrentPlayerRemainingGuesses} attempts remaining </div>
 
         {isPlaying && <>
             <Input value={guess} onChange={e => setGuess(e.target.value)} />
-            <Button onClick={() => sendGuess(guess)}>Guess !</Button>
+            <Button className="m-4" onClick={() => sendGuess(guess)}>Guess !</Button>
         </>}
-        <div className="mt-8">Players:</div>
-        <PlayerBoxes players={Players} current={currentPlayer} user={user} />
 
-        <div className="mt-8"> Guesses</div>
-        {Guesses.map(({ Guess, Player, Correct, Flag }, idx) => <div key={Guess + Player + idx}><i className={`capitalize text-2xl ${Correct ? "text-green-700" : "text-red-700"}`}>{Flag && `${Flag} `}{Guess}</i> from <b>{Player}</b></div>)}
+        <div className="grid grid-cols-2">
+            <PlayerBoxes players={Players} current={currentPlayer} user={user} />
+            <GuessBoxes guesses={Guesses} />
+        </div>
     </>
 }
