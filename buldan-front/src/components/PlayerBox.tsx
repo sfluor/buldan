@@ -1,24 +1,42 @@
-import { primaryOutlineLight, primaryColorLight, secondaryOutlineLight, secondaryColorLight, errorColorLight, errorOutlineLight } from "./constants";
+import {
+  primaryOutlineLight,
+  primaryColorLight,
+  secondaryOutlineLight,
+  secondaryColorLight,
+  errorColorLight,
+  errorOutlineLight,
+} from "./constants";
 import { Player } from "./Lobby";
 
-export default function PlayerBox({ isUser, isPlaying, player: { Name, Admin, Lost } }: { isUser: boolean, isPlaying: boolean, player: Player }) {
+export default function PlayerBox({
+  isUser,
+  isPlaying,
+  player: { Name, Admin, Lost },
+}: {
+  isUser: boolean;
+  isPlaying: boolean;
+  player: Player;
+}) {
+  let prefix = "";
+  const color = isUser
+    ? `${primaryColorLight} ${primaryOutlineLight}`
+    : `${secondaryColorLight} ${secondaryOutlineLight}`;
+  let className = color;
+  if (isPlaying) {
+    prefix = "⏳ ";
+    className = `${color} font-semibold`;
+  } else if (Lost) {
+    prefix = "❌ ";
+    className = `${errorColorLight} ${errorOutlineLight} line-through`;
+  }
 
-    let prefix = "";
-    const color = isUser ? `${primaryColorLight} ${primaryOutlineLight}` : `${secondaryColorLight} ${secondaryOutlineLight}`;
-    let className = color;
-    if (isPlaying) {
-        prefix = "⏳ ";
-        className = `${color} font-semibold`;
-    } else if (Lost) {
-        prefix = '❌ ';
-        className = `${errorColorLight} ${errorOutlineLight} line-through`;
-    }
+  if (Admin) {
+    prefix = `👑 ${prefix}`;
+  }
 
-    if (Admin) {
-        prefix = `👑 ${prefix}`;
-    }
+  className = `p-2 my-6 outline outline-offset-2 ${
+    isPlaying ? "animate-bounce outline-4" : "outline-1"
+  } rounded max-w-64 ${className}`;
 
-    className = `p-2 my-6 outline outline-offset-2 ${isPlaying ? 'animate-bounce outline-4' : 'outline-1'} rounded max-w-64 ${className}`
-
-    return <div className={className}>{`${prefix}${Name}`}</div>
+  return <div className={className}>{`${prefix}${Name}`}</div>;
 }
