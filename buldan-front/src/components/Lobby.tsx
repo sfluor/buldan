@@ -20,6 +20,7 @@ export interface Guess {
     Guess: string
     Player: string
     Correct: boolean
+    Flag?: string
 }
 
 enum LobbyState {

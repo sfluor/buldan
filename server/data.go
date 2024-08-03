@@ -10,11 +10,11 @@ type Country struct {
 }
 
 func countriesStartingWith(char byte) (map[string]Country, error) {
-    // TODO normalize country names
+	// TODO normalize country names
 	res := make(map[string]Country)
 
 	for _, country := range countries {
-        countryName := strings.TrimSpace(strings.ToLower(country.Name))
+		countryName := strings.TrimSpace(strings.ToLower(country.Name))
 		if countryName[0] == char {
 			res[countryName] = country
 		}
@@ -215,7 +215,7 @@ var countries = []Country{
 		Flag: "🇨🇽",
 	},
 	{
-		Name: "Cocos (Keeling) Islands",
+		Name: "Cocos Islands",
 		Flag: "🇨🇨",
 	},
 	{
@@ -243,7 +243,7 @@ var countries = []Country{
 		Flag: "🇨🇷",
 	},
 	{
-		Name: "Côte d'Ivoire (Ivory Coast)",
+		Name: "Côte d'Ivoire",
 		Flag: "🇨🇮",
 	},
 	{
@@ -311,7 +311,7 @@ var countries = []Country{
 		Flag: "🇪🇪",
 	},
 	{
-		Name: "Eswatini (Swaziland)",
+		Name: "Eswatini",
 		Flag: "🇸🇿",
 	},
 	{
@@ -991,7 +991,7 @@ var countries = []Country{
 		Flag: "🇻🇺",
 	},
 	{
-		Name: "Vatican City (Holy See)",
+		Name: "Vatican",
 		Flag: "🇻🇦",
 	},
 	{
