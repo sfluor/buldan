@@ -1,6 +1,6 @@
 import Button from "./Button";
-import { primaryColorTxt, secondaryColorTxt } from "./constants";
 import { Player } from "./Lobby";
+import PlayerBoxes from "./PlayerBoxes";
 
 
 function copyToClipboard(data: string) {
@@ -15,13 +15,15 @@ function copyToClipboard(data: string) {
 
 
 
-export default function LobbyWaitRoom({ players, user, id, startGame }: { players: Player[], user: string, id: string, startGame: () => void }) {
+export default function LobbyWaitRoom({ players, user, shareUrl, startGame }: { players: Player[], user: string, shareUrl: string, startGame: () => void }) {
     const isAdmin = players.find(player => player.Name === user)?.Admin;
 
+    // No current player since we are in the waiting room.
+    const currentPlayer = "";
     return <>
-        {players.map(({ Name, Admin }, idx) => <div key={idx} className={Name === user ? `${primaryColorTxt} font-semibold` : secondaryColorTxt}>{`${Name == user ? "> " : ""}${Name}${Admin ? " (admin)" : ""}`}</div>)}
+        <PlayerBoxes players={players} current={currentPlayer} user={user} />
 
         {isAdmin && <Button onClick={startGame}>Start game !</Button>}
-        <Button secondary onClick={() => copyToClipboard(`${window.location.host}/lobby/${id}`)}>Share lobby !</Button>
+        <Button secondary onClick={() => copyToClipboard(shareUrl)}>Share lobby !</Button>
     </>
 }

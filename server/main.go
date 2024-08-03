@@ -308,12 +308,16 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 		if round.Remaining == 0 {
 			return l.newRoundUnsafe(ctx)
 		}
-		l.nextPlayer()
+		if l.nextPlayer() {
+            return l.newRoundUnsafe(ctx)
+        }
 	} else {
 		round.CurrentPlayerRemainingGuesses--
 		if round.CurrentPlayerRemainingGuesses <= 0 {
 			round.Players[round.CurrentPlayerIndex].Lost = true
-			l.nextPlayer()
+			if l.nextPlayer() {
+            return l.newRoundUnsafe(ctx)
+            }
 		}
 	}
 
