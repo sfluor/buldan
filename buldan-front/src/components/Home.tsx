@@ -8,6 +8,7 @@ import { useLocation } from "wouter";
 import BuldanText from "./BuldanText";
 
 export default function Home() {
+  // TODO: save pseudo
   const [user, setUser] = useState(generateName());
   const setLocation = useLocation()[1];
 

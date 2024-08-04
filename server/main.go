@@ -32,9 +32,11 @@ func errOutWS(c *websocket.Conn, msg string, code websocket.StatusCode) {
 	}
 }
 
+// TODO: add symbol for player
 type Player struct {
-	Name  string
-	Admin bool
+	Name   string
+	Admin  bool
+	Points uint32
 	// Internal
 	conn *websocket.Conn
 }
@@ -58,7 +60,7 @@ const (
 )
 
 type RoundPlayer struct {
-	Player
+	*Player
 	Lost bool
 }
 
@@ -94,7 +96,7 @@ type Guess struct {
 
 type EventPlayers struct {
 	Type    EventType
-	Players []Player
+	Players []*Player
 }
 
 type ClientEvent struct {
@@ -102,7 +104,7 @@ type ClientEvent struct {
 	Guess string
 }
 
-func eventPlayers(players []Player) EventPlayers {
+func eventPlayers(players []*Player) EventPlayers {
 	return EventPlayers{
 		Type:    EventTypePlayers,
 		Players: players,
@@ -122,7 +124,7 @@ type lobby struct {
 
 	start   bool
 	id      string
-	players []Player
+	players []*Player
 
 	rounds []*Round
 
@@ -213,7 +215,7 @@ func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn
 	}
 
 	newPlayer := Player{Name: name, conn: conn, Admin: len(l.players) == 0}
-	l.players = append(l.players, newPlayer)
+	l.players = append(l.players, &newPlayer)
 
 	// Notify all the players of the new player
 	return l.broadcastJSON(ctx, eventPlayers(l.players))
@@ -304,20 +306,21 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 
 	if correct {
 		delete(round.remainingCountries, guess)
+		round.Players[round.CurrentPlayerIndex].Points += 1
 		round.Remaining = len(round.remainingCountries)
 		if round.Remaining == 0 {
 			return l.newRoundUnsafe(ctx)
 		}
 		if l.nextPlayer() {
-            return l.newRoundUnsafe(ctx)
-        }
+			return l.newRoundUnsafe(ctx)
+		}
 	} else {
 		round.CurrentPlayerRemainingGuesses--
 		if round.CurrentPlayerRemainingGuesses <= 0 {
 			round.Players[round.CurrentPlayerIndex].Lost = true
 			if l.nextPlayer() {
-            return l.newRoundUnsafe(ctx)
-            }
+				return l.newRoundUnsafe(ctx)
+			}
 		}
 	}
 

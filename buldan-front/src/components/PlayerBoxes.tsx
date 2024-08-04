@@ -10,6 +10,7 @@ export default function PlayerBoxes({
   current: string;
   user: string;
 }) {
+  const bestScore = Math.max(...players.map(({ Points }) => Points));
   return (
     <div>
       <div className="mt-8"> Players</div>
@@ -17,6 +18,7 @@ export default function PlayerBoxes({
         <PlayerBox
           player={player}
           key={idx}
+          isFirst={bestScore === player.Points && bestScore > 0}
           isPlaying={player.Name === current}
           isUser={player.Name === user}
         />

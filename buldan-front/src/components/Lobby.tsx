@@ -10,6 +10,7 @@ export interface Player {
   Name: string;
   Admin: boolean;
   Lost?: boolean;
+  Points: number;
 }
 
 interface Notification {

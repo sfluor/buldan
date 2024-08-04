@@ -11,10 +11,12 @@ import { Player } from "./Lobby";
 export default function PlayerBox({
   isUser,
   isPlaying,
-  player: { Name, Admin, Lost },
+  isFirst,
+  player: { Name, Admin, Lost, Points },
 }: {
   isUser: boolean;
   isPlaying: boolean;
+  isFirst: boolean;
   player: Player;
 }) {
   let prefix = "";
@@ -38,5 +40,16 @@ export default function PlayerBox({
     isPlaying ? "animate-bounce outline-4" : "outline-1"
   } rounded max-w-64 ${className}`;
 
-  return <div className={className}>{`${prefix}${Name}`}</div>;
+  return (
+    <div className={className}>
+      <b>{`${prefix}${Name}`}</b>
+      {" - "}
+      <span
+        className={isFirst ? "underline decoration-4 decoration-green-800" : ""}
+      >
+        ({Points}
+        {" points)"}
+      </span>
+    </div>
+  );
 }
