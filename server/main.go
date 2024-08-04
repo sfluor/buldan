@@ -371,7 +371,7 @@ func (lm *lobbyManager) nextGameID() string {
 			return id
 		}
 
-		raw := make([]byte, 6)
+		raw := make([]byte, 3)
 		if _, err := rand.Read(raw); err != nil {
 			panic(err)
 		}
