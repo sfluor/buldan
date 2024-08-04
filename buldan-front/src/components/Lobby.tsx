@@ -166,7 +166,7 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
 
 function LobbyHeader({ id, shareUrl }: { id: string; shareUrl: string }) {
   return (
-    <div className="p-4 my-4 text-lg bg-orange-100 rounded-md">
+    <div className="p-4 my-4 text-lg bg-indigo-100 rounded-md">
       {" "}
       <a
         className="font-medium text-blue-600 dark:text-blue-500 hover:underline"
