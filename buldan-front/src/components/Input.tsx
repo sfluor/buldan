@@ -3,25 +3,62 @@ export default function Input({
   label,
   value,
   onChange,
+  min,
+  max,
 }: {
   type?: string;
   label?: string;
+  min?: number;
+  max?: number;
   value?: string | number;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
 }) {
+  const valid = (() => {
+    if (value === undefined) {
+      return false;
+    }
+
+    if (type !== "number") {
+      return true;
+    }
+
+    if (typeof value !== "number") {
+      value = parseInt(value);
+    }
+
+    if (min !== undefined && value < min) {
+      return false;
+    }
+    if (max !== undefined && value > max) {
+      return false;
+    }
+    return true;
+  })();
+
+  let borderClasses =
+    "focus:border-indigo-500 focus:text-blue-500 border border-solid border-blue-500 text-indigo-500 font-semibold";
+  if (!valid) {
+    borderClasses =
+      "border border-solid border-red-500 text-red-500 font-semibold";
+  }
+
   const input = (
     <input
       type={type ? type : "text"}
+      min={min}
+      max={max}
       value={value}
       onChange={onChange}
-      className="focus:border-indigo-500 focus:text-blue-500 outline-none box border border-solid border-blue-500 border-b-8 px-4 py-2 text-indigo-500 font-semibold border-r-8 transition duration-1000 max-w-80"
+      className={`${borderClasses} border-r-8 border-b-8 px-4 py-2 outline-none box transition duration-1000 max-w-80`}
     />
   );
 
   if (label) {
     return (
       <div className="flex flex-col">
-        <span className="font-semibold border border-solid max-w-28 border-blue-500 border-1 border-b-0 px-2">
+        <span
+          className={`${borderClasses} font-semibold max-w-28 border-1 border-b-0 px-2`}
+        >
           {label}
         </span>
         {input}

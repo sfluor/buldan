@@ -21,21 +21,49 @@ type Country struct {
 	Flag           string
 }
 
+type CountryStatus struct {
+	Country
+	GuessedBy *string
+}
+
 type Countries struct {
-	byName map[string]Country
+	byName    map[string]Country
+	guessedBy map[string]string
+	all       []Country
 }
 
 func countriesStartingWith(char byte) Countries {
 	byName := countries[char]
+	all := make([]Country, 0, len(byName))
 
-	return Countries{byName: maps.Clone(byName)}
+	for _, c := range byName {
+		all = append(all, c)
+	}
+
+	return Countries{byName: maps.Clone(byName), all: all, guessedBy: map[string]string{}}
 }
 
 func (c *Countries) remaining() int {
 	return len(c.byName)
 }
 
-func (c *Countries) guess(guess string) (Country, string, bool) {
+func (c *Countries) status() []CountryStatus {
+	res := make([]CountryStatus, 0, len(c.all))
+
+	for _, country := range c.all {
+		status := CountryStatus{Country: country}
+		guesser, ok := c.guessedBy[country.Name]
+		if ok {
+			status.GuessedBy = &guesser
+		}
+
+		res = append(res, status)
+	}
+
+	return res
+}
+
+func (c *Countries) guess(guess string, from string) (Country, string, bool) {
 	normalizedQuery := normalize(guess)
 
 	// countryScore holds a country name and its similarity score
@@ -60,6 +88,8 @@ func (c *Countries) guess(guess string) (Country, string, bool) {
 	guessStr := guess
 	if valid {
 		delete(c.byName, match.key)
+
+		c.guessedBy[match.country.Name] = from
 
 		if match.score < minScoreExact {
 			guessStr = fmt.Sprintf("%s (%s)", guess, match.country.Name)

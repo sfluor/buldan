@@ -1,8 +1,8 @@
 import "./App.css";
 import Home from "./components/Home";
 import Lobby from "./components/Lobby";
-import { Redirect, Route, Switch } from "wouter";
-import generateName from "./components/name_gen";
+import { Route, Switch } from "wouter";
+import JoinLobby from "./components/JoinLobby";
 
 function App() {
   return (
@@ -12,9 +12,7 @@ function App() {
           {" "}
           <Home />{" "}
         </Route>
-        <Route path="/lobby/:id">
-          {({ id }) => <Redirect to={`/lobby/${id}/${generateName()}`} />}
-        </Route>
+        <Route path="/lobby/:id">{({ id }) => <JoinLobby id={id} />}</Route>
         <Route path="/lobby/:id/:user">
           {({ id, user }) => <Lobby id={id} user={user} />}
         </Route>

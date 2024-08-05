@@ -5,6 +5,7 @@ import { useLocation } from "wouter";
 import LobbyWaitRoom from "./LobbyWaitRoom";
 import LobbyRound from "./LobbyRound";
 import BuldanText from "./BuldanText";
+import LobbyRoundEnd from "./LobbyRoundEnd";
 
 export interface Player {
   Name: string;
@@ -30,12 +31,6 @@ export interface GameOptions {
   GuessTimeSeconds: number;
 }
 
-enum LobbyState {
-  WaitingRoom,
-  Round,
-  BetweenRound,
-}
-
 export interface RoundState {
   Guesses: Guess[];
   Letter: string;
@@ -45,13 +40,25 @@ export interface RoundState {
   CurrentPlayerRemainingGuesses: number;
 }
 
+export interface Country {
+  Name: string;
+  Flag: string;
+  GuessedBy?: string;
+}
+
+export interface EndRound {
+  Letter: string;
+  Guesses: Guess[];
+  Countries: Country[];
+}
+
 export default function Lobby({ id, user }: { id: string; user: string }) {
   // TODO: dedupe players and round
   const [players, setPlayers] = useState<Player[]>([]);
   const ws = useRef<WebSocket | null>(null);
   const [notif, setNotif] = useState<Notification | null>(null);
-  const [state, setState] = useState(LobbyState.WaitingRoom);
   const [round, setRound] = useState<RoundState | null>(null);
+  const [endRound, setEndRound] = useState<EndRound | null>(null);
 
   // (otherwise not happy about the any)
   // eslint-disable-next-line
@@ -117,10 +124,14 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
         setPlayers([...json.Players]);
         console.log("Set players", json);
       } else if (json.Type === "new-round" || json.Type === "round-update") {
-        setState(LobbyState.Round);
+        setEndRound(null);
         setRound(json.Round);
         setPlayers(json.Players);
         console.log("Round update", json);
+      } else if (json.Type === "end-round") {
+        setRound(null);
+        setEndRound(json);
+        console.log("end round", json);
       } else {
         notifAndRedirect({
           message: `Unknown payload received ${json.Type}: ${event.data}`,
@@ -138,10 +149,10 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
         });
       }
     };
-  }, [notif, setLocation, setRound, setPlayers, setState]);
+  }, [notif, setLocation, setRound, setPlayers]);
 
   let component;
-  if (state === LobbyState.WaitingRoom) {
+  if (round === null && endRound === null) {
     component = (
       <LobbyWaitRoom
         players={players}
@@ -150,7 +161,7 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
         startGame={startGame}
       />
     );
-  } else if (state === LobbyState.Round) {
+  } else if (round != null) {
     component = (
       <LobbyRound
         user={user}
@@ -159,8 +170,8 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
         sendGuess={sendGuess}
       />
     );
-  } else if (state === LobbyState.BetweenRound) {
-    component = <div> Loading... </div>;
+  } else if (endRound != null) {
+    component = <LobbyRoundEnd endRound={endRound} />;
   } else {
     component = <div> Unexpected lobby state ! </div>;
   }

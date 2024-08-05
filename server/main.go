@@ -22,6 +22,7 @@ import (
 const (
 	guessesPerTurn      = 3
 	hardDisconnectDelay = 10 * time.Second
+	newRoundDelay       = 15 * time.Second
 )
 
 func errOut(w http.ResponseWriter, msg string, code int) {
@@ -92,6 +93,13 @@ type EventRound struct {
 	Type    EventType
 	Round   *Round
 	Players []*Player
+}
+
+type EventRoundEnd struct {
+	Type      EventType
+	Letter    string
+	Countries []CountryStatus
+	Guesses   []Guess
 }
 
 type Guess struct {
@@ -342,6 +350,19 @@ func (l *lobby) newRoundUnsafe(ctx context.Context) error {
 	if lastRound != nil {
 		currentPlayerIndex = (lastRound.CurrentPlayerIndex + 1) % len(l.players)
 
+		endRound := EventRoundEnd{
+			Type:      EventTypeEndRound,
+			Letter:    lastRound.Letter,
+			Guesses:   lastRound.Guesses,
+			Countries: lastRound.remainingCountries.status(),
+		}
+
+		if err := l.broadcastJSON(ctx, endRound); err != nil {
+			return err
+		}
+
+		// TODO don't lock for the whole period
+		time.Sleep(newRoundDelay)
 	}
 
 	round := Round{
@@ -405,7 +426,7 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 	}
 
 	guess = strings.ToLower(guess)
-	country, guessStr, correct := round.remainingCountries.guess(guess)
+	country, guessStr, correct := round.remainingCountries.guess(guess, from)
 
 	round.Guesses = append(round.Guesses, Guess{
 		Player:  from,
@@ -455,6 +476,7 @@ func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent
 			l.started = true
 			l.opts = clientEvent.Options
 
+			// TODO respect options
 			log.Printf("Starting with game options: %+v", l.opts)
 
 			if err := l.newRound(ctx); err != nil {

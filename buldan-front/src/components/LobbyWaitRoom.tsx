@@ -35,26 +35,36 @@ export default function LobbyWaitRoom({
   const currentPlayer = "";
   return (
     <>
-      <div className={mainViewCols}>
-        <PlayerBoxes players={players} current={currentPlayer} user={user} />
-
-        <div>
-          <div className="mt-8 mb-4"> Options</div>
-          <div className="flex flex-col gap-y-4">
-            <Input
-              type="number"
-              value={rounds}
-              onChange={(e) => setRounds(e.target.value)}
-              label="Max rounds"
-            />
-            <Input
-              type="number"
-              value={guessTime}
-              onChange={(e) => setGuessTime(e.target.value)}
-              label="Guess time (sec)"
-            />
+      <div className={`${mainViewCols} mb-8 items-center`}>
+        {isAdmin ? (
+          <div>
+            <div className="mt-8 mb-4"> Options</div>
+            <div className="flex flex-col gap-y-4">
+              <Input
+                type="number"
+                value={rounds}
+                min={3}
+                max={10}
+                onChange={(e) => setRounds(e.target.value)}
+                label="Max rounds"
+              />
+              <Input
+                type="number"
+                min={10}
+                max={90}
+                value={guessTime}
+                onChange={(e) => setGuessTime(e.target.value)}
+                label="Guess time (sec)"
+              />
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="text-2xl">
+            {" "}
+            Waiting for the admin to launch the game...
+          </div>
+        )}
+        <PlayerBoxes players={players} current={currentPlayer} user={user} />
       </div>
       {isAdmin && (
         <Button
