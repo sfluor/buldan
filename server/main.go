@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	mrand "math/rand"
 	"net/http"
 	"os"
 	"path"
@@ -15,7 +14,6 @@ import (
 	"sync"
 
 	"nhooyr.io/websocket"
-	// "nhooyr.io/websocket/wsjson"
 )
 
 const guessesPerTurn = 3
@@ -78,7 +76,7 @@ type Round struct {
 
 	// Duplicate it since this one isn't serialized even
 	// though we could infer it from the one below
-	remainingCountries map[string]Country
+	remainingCountries Countries
 	Remaining          int
 }
 
@@ -224,10 +222,7 @@ func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn
 func (l *lobby) newRoundUnsafe(ctx context.Context) error {
 	// TODO Careful of too many rounds
 	letter := l.letters[len(l.rounds)]
-	countries, err := countriesStartingWith(byte(letter))
-	if err != nil {
-		return err
-	}
+	countries := countriesStartingWith(byte(letter))
 
 	players := make([]RoundPlayer, 0, len(l.players))
 	for _, p := range l.players {
@@ -243,7 +238,7 @@ func (l *lobby) newRoundUnsafe(ctx context.Context) error {
 		CurrentPlayerRemainingGuesses: guessesPerTurn,
 		Players:                       players,
 		Guesses:                       []Guess{},
-		Remaining:                     len(countries),
+		Remaining:                     countries.remaining(),
 		remainingCountries:            countries,
 	}
 
@@ -295,19 +290,18 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 	}
 
 	guess = strings.ToLower(guess)
-	country, correct := round.remainingCountries[guess]
+	country, correct := round.remainingCountries.guess(guess)
 
 	round.Guesses = append(round.Guesses, Guess{
 		Player:  from,
-		Guess:   guess,
+		Guess:   fmt.Sprintf("%s > %s", guess, country.Name),
 		Flag:    country.Flag,
 		Correct: correct,
 	})
 
 	if correct {
-		delete(round.remainingCountries, guess)
 		round.Players[round.CurrentPlayerIndex].Points += 1
-		round.Remaining = len(round.remainingCountries)
+		round.Remaining = round.remainingCountries.remaining()
 		if round.Remaining == 0 {
 			return l.newRoundUnsafe(ctx)
 		}
@@ -377,28 +371,6 @@ func (lm *lobbyManager) nextGameID() string {
 		}
 		id = fmt.Sprintf("%X", raw)
 	}
-}
-
-func newLetters() []byte {
-	letters := []byte{}
-	seen := map[byte]struct{}{}
-
-	for _, country := range countries {
-		letter := strings.ToLower(country.Name)[0]
-		if _, ok := seen[letter]; ok {
-			continue
-		}
-
-		seen[letter] = struct{}{}
-		letters = append(letters, letter)
-	}
-
-	mrand.Shuffle(len(letters), func(i, j int) {
-		letters[i], letters[j] = letters[j], letters[i]
-	})
-
-	letters[0] = 'y'
-	return letters
 }
 
 func (lm *lobbyManager) create() string {
