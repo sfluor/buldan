@@ -1,6 +1,6 @@
 import { useState } from "react";
 import Input from "./Input";
-import { RoundState } from "./Lobby";
+import { Player, RoundState } from "./Lobby";
 import Button from "./Button";
 import PlayerBoxes from "./PlayerBoxes";
 import GuessBoxes from "./GuessBoxes";
@@ -8,10 +8,12 @@ import GuessBoxes from "./GuessBoxes";
 export default function LobbyRound({
   user,
   round,
+  players,
   sendGuess,
 }: {
   user: string;
   round: RoundState | null;
+  players: Player[];
   sendGuess: (guess: string) => void;
 }) {
   // Must to that before the early return.
@@ -23,7 +25,6 @@ export default function LobbyRound({
   }
 
   const {
-    Players,
     Guesses,
     Remaining,
     CurrentPlayerRemainingGuesses,
@@ -31,7 +32,7 @@ export default function LobbyRound({
     Letter,
   } = round;
 
-  const currentPlayer = Players[CurrentPlayerIndex].Name;
+  const currentPlayer = players[CurrentPlayerIndex].Name;
   const isPlaying = currentPlayer === user;
 
   return (
@@ -52,7 +53,12 @@ export default function LobbyRound({
       )}
 
       <div className="grid grid-cols-2">
-        <PlayerBoxes players={Players} current={currentPlayer} user={user} />
+        <PlayerBoxes
+          players={players}
+          playersOut={round.PlayersOut}
+          current={currentPlayer}
+          user={user}
+        />
         <GuessBoxes guesses={Guesses} />
       </div>
     </>

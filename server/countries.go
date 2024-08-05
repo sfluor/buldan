@@ -8,7 +8,7 @@ import (
 )
 
 const minScore = 0.85
-const minScoreExact = 0.95
+const minScoreExact = 0.99
 
 type rawCountry struct {
 	name string

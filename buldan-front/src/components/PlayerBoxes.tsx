@@ -4,10 +4,12 @@ import PlayerBox from "./PlayerBox";
 export default function PlayerBoxes({
   players,
   current,
+  playersOut,
   user,
 }: {
   players: Player[];
   current: string;
+  playersOut?: Record<string, boolean>;
   user: string;
 }) {
   const bestScore = Math.max(...players.map(({ Points }) => Points));
@@ -20,6 +22,7 @@ export default function PlayerBoxes({
           key={idx}
           isFirst={bestScore === player.Points && bestScore > 0}
           isPlaying={player.Name === current}
+          hasLost={playersOut ? playersOut[player.Name] : false}
           isUser={player.Name === user}
         />
       ))}

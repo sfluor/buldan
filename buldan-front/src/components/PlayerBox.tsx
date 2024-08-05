@@ -14,11 +14,13 @@ export default function PlayerBox({
   isUser,
   isPlaying,
   isFirst,
-  player: { Name, Admin, Lost, Points, Connected },
+  hasLost,
+  player: { Name, Admin, Points, Connected },
 }: {
   isUser: boolean;
   isPlaying: boolean;
   isFirst: boolean;
+  hasLost: boolean;
   player: Player;
 }) {
   let prefix = "";
@@ -32,7 +34,7 @@ export default function PlayerBox({
   } else if (isPlaying) {
     prefix = "⏳ ";
     className = `${color} font-semibold`;
-  } else if (Lost) {
+  } else if (hasLost) {
     prefix = "❌ ";
     className = `${errorColorLight} ${errorOutlineLight} line-through`;
   }

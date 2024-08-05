@@ -9,7 +9,6 @@ import BuldanText from "./BuldanText";
 export interface Player {
   Name: string;
   Admin: boolean;
-  Lost?: boolean;
   Points: number;
   Connected: boolean;
 }
@@ -33,9 +32,9 @@ enum LobbyState {
 }
 
 export interface RoundState {
-  Players: Player[];
   Guesses: Guess[];
   Letter: string;
+  PlayersOut: Record<string, boolean>;
   Remaining: number;
   CurrentPlayerIndex: number;
   CurrentPlayerRemainingGuesses: number;
@@ -112,13 +111,11 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
       if (json.Type === "players") {
         setPlayers([...json.Players]);
         console.log("Set players", json);
-      } else if (json.Type === "new-round") {
+      } else if (json.Type === "new-round" || json.Type === "round-update") {
         setState(LobbyState.Round);
         setRound(json.Round);
-        console.log("New round", json);
-      } else if (json.Type === "guess") {
-        setRound(json.Round);
-        console.log("New guess", json);
+        setPlayers(json.Players);
+        console.log("Round update", json);
       } else {
         notifAndRedirect({
           message: `Unknown payload received ${json.Type}: ${event.data}`,
@@ -149,7 +146,14 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
       />
     );
   } else if (state === LobbyState.Round) {
-    component = <LobbyRound user={user} round={round} sendGuess={sendGuess} />;
+    component = (
+      <LobbyRound
+        user={user}
+        round={round}
+        players={players}
+        sendGuess={sendGuess}
+      />
+    );
   } else if (state === LobbyState.BetweenRound) {
     component = <div> Loading... </div>;
   } else {

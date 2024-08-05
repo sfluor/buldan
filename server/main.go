@@ -21,7 +21,7 @@ import (
 
 const (
 	guessesPerTurn      = 3
-	hardDisconnectDelay = 30 * time.Second
+	hardDisconnectDelay = 10 * time.Second
 )
 
 func errOut(w http.ResponseWriter, msg string, code int) {
@@ -50,12 +50,12 @@ type Player struct {
 type EventType string
 
 const (
-	EventTypePlayers  = "players"
-	EventTypeGuess    = "guess"
-	EventTypeLoose    = "loose"
-	EventTypeNewRound = "new-round"
-	EventTypeEndRound = "end-round"
-	EventTypeEnd      = "end"
+	EventTypePlayers     = "players"
+	EventTypeGuess       = "guess"
+	EventTypeLoose       = "loose"
+	EventTypeRoundUpdate = "round-update"
+	EventTypeEndRound    = "end-round"
+	EventTypeEnd         = "end"
 )
 
 type ClientEventType string
@@ -65,15 +65,10 @@ const (
 	ClientEventTypeStartGame = "start-game"
 )
 
-type RoundPlayer struct {
-	*Player
-	Lost bool
-}
-
 type Round struct {
 	Round int
 
-	Players []RoundPlayer
+	PlayersOut map[string]bool
 
 	CurrentPlayerIndex            int
 	CurrentPlayerRemainingGuesses int
@@ -89,8 +84,9 @@ type Round struct {
 }
 
 type EventRound struct {
-	Type  EventType
-	Round Round
+	Type    EventType
+	Round   *Round
+	Players []*Player
 }
 
 type Guess struct {
@@ -100,21 +96,9 @@ type Guess struct {
 	Correct bool
 }
 
-type EventPlayers struct {
-	Type    EventType
-	Players []*Player
-}
-
 type ClientEvent struct {
 	Type  ClientEventType
 	Guess string
-}
-
-func eventPlayers(players []*Player) EventPlayers {
-	return EventPlayers{
-		Type:    EventTypePlayers,
-		Players: players,
-	}
 }
 
 func (p *Player) send(ctx context.Context, data []byte) error {
@@ -147,6 +131,21 @@ func (l *lobby) broadcastJSON(ctx context.Context, data any) error {
 
 	log.Printf("[lobby:%s] Broadcasting: %+v", l.id, data)
 	return l.broadcast(ctx, encoded)
+}
+
+func (l *lobby) currentRound() *Round {
+	if len(l.rounds) > 0 {
+		return l.rounds[len(l.rounds)-1]
+	}
+
+	return nil
+}
+
+func (l *lobby) broadcastPlayers(ctx context.Context) error {
+	return l.broadcastJSON(ctx, EventRound{
+		Type:    EventTypePlayers,
+		Players: l.players,
+	})
 }
 
 func (l *lobby) broadcast(ctx context.Context, content []byte) error {
@@ -189,8 +188,29 @@ func (l *lobby) hardDisconnect(player string) error {
 				return nil
 			}
 
-			// Else let's remove them from the player list completely
-			return l.broadcastJSON(context.Background(), eventPlayers(l.players))
+			round := l.currentRound()
+			wasPlaying := round != nil && round.CurrentPlayerIndex >= len(l.players)
+			// Offset the player index to avoid the FE from complaining, we'll see afterwards if we
+			// need to create a new round.
+			if wasPlaying {
+				round.CurrentPlayerIndex--
+			}
+
+			if err := l.broadcastJSON(context.Background(), EventRound{
+				Type:    EventTypeRoundUpdate,
+				Players: l.players,
+				Round:   round,
+			}); err != nil {
+				return err
+			}
+
+			// TODO dedupe this with above
+			// If the player was this one move to the next player
+			if wasPlaying && l.nextPlayer() {
+				return l.newRoundUnsafe(context.Background())
+			}
+
+			return nil
 		}
 	}
 
@@ -224,9 +244,8 @@ func (l *lobby) disconnect(ctx context.Context, player string) error {
 
 			log.Printf("Player %s disconnected", player)
 
-			// TODO: broadcast round instead of players
 			// Broadcast the new players
-			return l.broadcastJSON(ctx, eventPlayers(l.players))
+			return l.broadcastPlayers(ctx)
 		}
 	}
 
@@ -254,16 +273,29 @@ func (l *lobby) reconnect(ctx context.Context, player *Player, conn *websocket.C
 	log.Printf("Player %s reconnected", player.Name)
 
 	// Notify all the players of the new player
-	return l.broadcastJSON(ctx, eventPlayers(l.players))
+	if err := l.broadcastPlayers(ctx); err != nil {
+		return err
+	}
+
+	round := l.currentRound()
+	if round != nil {
+		encoded, err := json.Marshal(EventRound{
+			Type:    EventTypeRoundUpdate,
+			Round:   l.currentRound(),
+			Players: l.players,
+		})
+		if err != nil {
+			return fmt.Errorf("Failed to encode as JSON: %w", err)
+		}
+		return player.send(ctx, encoded)
+	}
+
+	return nil
 }
 
 func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn) error {
 	l.Lock()
 	defer l.Unlock()
-
-	if l.started {
-		return fmt.Errorf("Game has started already, cannot accept more players")
-	}
 
 	for _, p := range l.players {
 		if p.Name == name {
@@ -275,6 +307,11 @@ func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn
 		}
 	}
 
+	// Not an existing player and the game has started, nope.
+	if l.started {
+		return fmt.Errorf("Game has started already, cannot accept more players")
+	}
+
 	newPlayer := Player{
 		Name:      name,
 		conn:      conn,
@@ -284,7 +321,7 @@ func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn
 	l.players = append(l.players, &newPlayer)
 
 	// Notify all the players of the new player
-	return l.broadcastJSON(ctx, eventPlayers(l.players))
+	return l.broadcastPlayers(ctx)
 }
 
 func (l *lobby) newRoundUnsafe(ctx context.Context) error {
@@ -292,19 +329,19 @@ func (l *lobby) newRoundUnsafe(ctx context.Context) error {
 	letter := l.letters[len(l.rounds)]
 	countries := countriesStartingWith(byte(letter))
 
-	players := make([]RoundPlayer, 0, len(l.players))
-	for _, p := range l.players {
-		players = append(players, RoundPlayer{
-			Player: p,
-		})
+	currentPlayerIndex := 0
+	lastRound := l.currentRound()
+	if lastRound != nil {
+		currentPlayerIndex = (lastRound.CurrentPlayerIndex + 1) % len(l.players)
+
 	}
 
 	round := Round{
 		Round:                         len(l.rounds) + 1,
-		Letter:                        string(letter), // TODO
-		CurrentPlayerIndex:            0,              // TODO; random
+		Letter:                        string(letter),
+		CurrentPlayerIndex:            currentPlayerIndex,
 		CurrentPlayerRemainingGuesses: guessesPerTurn,
-		Players:                       players,
+		PlayersOut:                    map[string]bool{},
 		Guesses:                       []Guess{},
 		Remaining:                     countries.remaining(),
 		remainingCountries:            countries,
@@ -313,8 +350,9 @@ func (l *lobby) newRoundUnsafe(ctx context.Context) error {
 	l.rounds = append(l.rounds, &round)
 
 	return l.broadcastJSON(ctx, EventRound{
-		Type:  EventTypeNewRound,
-		Round: round,
+		Type:    EventTypeRoundUpdate,
+		Players: l.players,
+		Round:   &round,
 	})
 }
 
@@ -325,18 +363,18 @@ func (l *lobby) newRound(ctx context.Context) error {
 }
 
 func (l *lobby) nextPlayer() (done bool) {
-	round := l.rounds[len(l.rounds)-1]
+	round := l.currentRound()
 
 	start := round.CurrentPlayerIndex
 
 	for {
 		round.CurrentPlayerIndex++
-		if round.CurrentPlayerIndex >= len(round.Players) {
+		if round.CurrentPlayerIndex >= len(l.players) {
 			round.CurrentPlayerIndex = 0
 		}
 
-		p := round.Players[round.CurrentPlayerIndex]
-		if !p.Lost && p.Connected {
+		p := l.players[round.CurrentPlayerIndex]
+		if !round.PlayersOut[p.Name] && p.Connected {
 			round.CurrentPlayerRemainingGuesses = guessesPerTurn
 			return false
 		}
@@ -351,9 +389,9 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 	l.Lock()
 	defer l.Unlock()
 
-	round := l.rounds[len(l.rounds)-1]
+	round := l.currentRound()
 
-	expectedPlayer := round.Players[round.CurrentPlayerIndex].Name
+	expectedPlayer := l.players[round.CurrentPlayerIndex].Name
 	if expectedPlayer != from {
 		return fmt.Errorf("Expected %s to play but received guess %s from %s", expectedPlayer, guess, from)
 	}
@@ -369,7 +407,7 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 	})
 
 	if correct {
-		round.Players[round.CurrentPlayerIndex].Points += 1
+		l.players[round.CurrentPlayerIndex].Points += 1
 		round.Remaining = round.remainingCountries.remaining()
 		if round.Remaining == 0 {
 			return l.newRoundUnsafe(ctx)
@@ -380,7 +418,7 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 	} else {
 		round.CurrentPlayerRemainingGuesses--
 		if round.CurrentPlayerRemainingGuesses <= 0 {
-			round.Players[round.CurrentPlayerIndex].Lost = true
+			round.PlayersOut[from] = true
 			if l.nextPlayer() {
 				return l.newRoundUnsafe(ctx)
 			}
@@ -394,8 +432,9 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 	// TODO flag
 
 	return l.broadcastJSON(ctx, EventRound{
-		Type:  EventTypeGuess,
-		Round: *round,
+		Type:    EventTypeRoundUpdate,
+		Round:   round,
+		Players: l.players,
 	})
 }
 
@@ -405,6 +444,7 @@ func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent
 	switch clientEvent.Type {
 	case ClientEventTypeStartGame:
 		if l.isAdmin(from) {
+			l.started = true
 			if err := l.newRound(ctx); err != nil {
 				return fmt.Errorf("failed to create new round: %w", err)
 			}
@@ -487,7 +527,7 @@ func (lm *lobbyManager) join(
 	// Technically there could be a race condition changing player here if it becomes admin for instance.
 	err := lobby.addPlayer(ctx, playerName, conn)
 	if err != nil {
-		errOutWS(conn, fmt.Sprintf("No lobby exist with id: %s", lobbyID), websocket.StatusInternalError)
+		errOutWS(conn, fmt.Sprintf("Couldn't join lobby: %s", err), websocket.StatusInternalError)
 		return
 	}
 
