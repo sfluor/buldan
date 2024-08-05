@@ -5,6 +5,8 @@ import {
   secondaryColorLight,
   errorColorLight,
   errorOutlineLight,
+  inactiveColorLight,
+  inactiveOutlineLight,
 } from "./constants";
 import { Player } from "./Lobby";
 
@@ -12,7 +14,7 @@ export default function PlayerBox({
   isUser,
   isPlaying,
   isFirst,
-  player: { Name, Admin, Lost, Points },
+  player: { Name, Admin, Lost, Points, Connected },
 }: {
   isUser: boolean;
   isPlaying: boolean;
@@ -24,7 +26,10 @@ export default function PlayerBox({
     ? `${primaryColorLight} ${primaryOutlineLight}`
     : `${secondaryColorLight} ${secondaryOutlineLight}`;
   let className = color;
-  if (isPlaying) {
+  if (!Connected) {
+    prefix = "📶 ";
+    className = `text-white ${inactiveColorLight} ${inactiveOutlineLight}`;
+  } else if (isPlaying) {
     prefix = "⏳ ";
     className = `${color} font-semibold`;
   } else if (Lost) {
@@ -39,6 +44,10 @@ export default function PlayerBox({
   className = `p-2 my-6 outline outline-offset-2 ${
     isPlaying ? "animate-bounce outline-4" : "outline-1"
   } rounded max-w-64 ${className}`;
+
+  if (isUser) {
+    Name = Name + " (you)";
+  }
 
   return (
     <div className={className}>

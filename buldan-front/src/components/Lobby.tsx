@@ -11,6 +11,7 @@ export interface Player {
   Admin: boolean;
   Lost?: boolean;
   Points: number;
+  Connected: boolean;
 }
 
 interface Notification {
@@ -41,6 +42,7 @@ export interface RoundState {
 }
 
 export default function Lobby({ id, user }: { id: string; user: string }) {
+  // TODO: dedupe players and round
   const [players, setPlayers] = useState<Player[]>([]);
   const ws = useRef<WebSocket | null>(null);
   const [notif, setNotif] = useState<Notification | null>(null);
@@ -108,14 +110,15 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
     ws.current.onmessage = function (event) {
       const json = JSON.parse(event.data);
       if (json.Type === "players") {
-        setPlayers(json.Players);
+        setPlayers([...json.Players]);
+        console.log("Set players", json);
       } else if (json.Type === "new-round") {
         setState(LobbyState.Round);
         setRound(json.Round);
         console.log("New round", json);
       } else if (json.Type === "guess") {
         setRound(json.Round);
-        console.log("New round", json);
+        console.log("New guess", json);
       } else {
         notifAndRedirect({
           message: `Unknown payload received ${json.Type}: ${event.data}`,
@@ -133,7 +136,7 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
         });
       }
     };
-  }, [notif, setLocation]);
+  }, [notif, setLocation, setRound, setPlayers, setState]);
 
   let component;
   if (state === LobbyState.WaitingRoom) {

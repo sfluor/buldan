@@ -3,10 +3,12 @@ export const secondaryColor = "bg-indigo-500";
 
 export const primaryColorLight = "bg-blue-200";
 export const secondaryColorLight = "bg-indigo-200";
+export const inactiveColorLight = "bg-slate-500";
 export const errorColorLight = "bg-red-200";
 
 export const primaryOutlineLight = "outline-blue-700";
 export const secondaryOutlineLight = "outline-indigo-700";
+export const inactiveOutlineLight = "outline-slate-700";
 export const errorOutlineLight = "outline-red-900";
 
 export const primaryColorTxt = "text-blue-500";

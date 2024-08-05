@@ -12,11 +12,17 @@ import (
 	"path"
 	"strings"
 	"sync"
+	"time"
 
 	"nhooyr.io/websocket"
 )
 
-const guessesPerTurn = 3
+// TODO better logging
+
+const (
+	guessesPerTurn      = 3
+	hardDisconnectDelay = 30 * time.Second
+)
 
 func errOut(w http.ResponseWriter, msg string, code int) {
 	log.Printf("[ERROR] Code:%d | %s", code, msg)
@@ -35,6 +41,8 @@ type Player struct {
 	Name   string
 	Admin  bool
 	Points uint32
+	// Technically derived from conn below
+	Connected bool
 	// Internal
 	conn *websocket.Conn
 }
@@ -120,7 +128,7 @@ func (p *Player) send(ctx context.Context, data []byte) error {
 type lobby struct {
 	sync.Mutex
 
-	start   bool
+	started bool
 	id      string
 	players []*Player
 
@@ -145,8 +153,10 @@ func (l *lobby) broadcast(ctx context.Context, content []byte) error {
 	errs := []string{}
 
 	for _, p := range l.players {
-		if err := p.send(ctx, content); err != nil {
-			errs = append(errs, err.Error())
+		if p.Connected {
+			if err := p.send(ctx, content); err != nil {
+				errs = append(errs, err.Error())
+			}
 		}
 	}
 
@@ -157,25 +167,64 @@ func (l *lobby) broadcast(ctx context.Context, content []byte) error {
 	return nil
 }
 
-func (l *lobby) disconnect(ctx context.Context, player string) error {
+func (l *lobby) hardDisconnect(player string) error {
 	l.Lock()
 	defer l.Unlock()
 
 	for i, p := range l.players {
 		if p.Name == player {
+			if p.Connected {
+				// The player reconnected, no need to hard disconnect them.
+				return nil
+			}
+
 			l.players = append(l.players[:i], l.players[i+1:]...)
+
+			log.Printf("hard-disconnecting player %s from %s", player, l.id)
 
 			if len(l.players) == 0 {
 				// No more players let's close the lobby
 				l.close()
+				log.Printf("Closing lobby %s after all players left", l.id)
 				return nil
 			}
 
+			// Else let's remove them from the player list completely
+			return l.broadcastJSON(context.Background(), eventPlayers(l.players))
+		}
+	}
+
+	return fmt.Errorf("Player %s wasn't found for hard-disconnect, this isn't expected", player)
+}
+
+func (l *lobby) disconnect(ctx context.Context, player string) error {
+	l.Lock()
+	defer l.Unlock()
+
+	for _, p := range l.players {
+		if p.Name == player {
+			p.Connected = false
+			p.conn = nil
+
+			// Schedule a hard disconnect
+			go func() {
+				<-time.Tick(hardDisconnectDelay)
+				l.hardDisconnect(player)
+			}()
+
 			if p.Admin {
-				// Mark as admin the first player that joined
-				l.players[0].Admin = true
+				// Mark as admin the first connected player.
+				for _, p2 := range l.players {
+					if p2.Connected {
+						p2.Admin = true
+						p.Admin = false
+					}
+				}
 			}
 
+			log.Printf("Player %s disconnected", player)
+
+			// TODO: broadcast round instead of players
 			// Broadcast the new players
 			return l.broadcastJSON(ctx, eventPlayers(l.players))
 		}
@@ -198,21 +247,40 @@ func (l *lobby) isAdmin(name string) bool {
 	return false
 }
 
+func (l *lobby) reconnect(ctx context.Context, player *Player, conn *websocket.Conn) error {
+	player.conn = conn
+	player.Connected = true
+
+	log.Printf("Player %s reconnected", player.Name)
+
+	// Notify all the players of the new player
+	return l.broadcastJSON(ctx, eventPlayers(l.players))
+}
+
 func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn) error {
 	l.Lock()
 	defer l.Unlock()
 
-	if l.start {
+	if l.started {
 		return fmt.Errorf("Game has started already, cannot accept more players")
 	}
 
 	for _, p := range l.players {
 		if p.Name == name {
-			return fmt.Errorf("Player name %s is already taken", name)
+			if p.Connected {
+				return fmt.Errorf("Player name %s is already taken", name)
+			} else {
+				return l.reconnect(ctx, p, conn)
+			}
 		}
 	}
 
-	newPlayer := Player{Name: name, conn: conn, Admin: len(l.players) == 0}
+	newPlayer := Player{
+		Name:      name,
+		conn:      conn,
+		Admin:     len(l.players) == 0,
+		Connected: true,
+	}
 	l.players = append(l.players, &newPlayer)
 
 	// Notify all the players of the new player
@@ -267,7 +335,8 @@ func (l *lobby) nextPlayer() (done bool) {
 			round.CurrentPlayerIndex = 0
 		}
 
-		if !round.Players[round.CurrentPlayerIndex].Lost {
+		p := round.Players[round.CurrentPlayerIndex]
+		if !p.Lost && p.Connected {
 			round.CurrentPlayerRemainingGuesses = guessesPerTurn
 			return false
 		}
