@@ -25,6 +25,11 @@ export interface Guess {
   Flag?: string;
 }
 
+export interface GameOptions {
+  Rounds: number;
+  GuessTimeSeconds: number;
+}
+
 enum LobbyState {
   WaitingRoom,
   Round,
@@ -59,7 +64,8 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
     }
   };
 
-  const startGame = () => send({ Type: "start-game" });
+  const startGame = (options: GameOptions) =>
+    send({ Type: "start-game", Options: options });
 
   const sendGuess = (guess: string) => send({ Type: "guess", Guess: guess });
 
@@ -79,9 +85,8 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
       console.log("Creating new websocket to: ", url, ws);
     }
 
-    ws.current.onopen = (e) => {
+    ws.current.onopen = () => {
       console.log("Opened WebSocket connection to: ", url);
-      (e.target as WebSocket).send(JSON.stringify({ hello: "hi" }));
     };
 
     return () => {

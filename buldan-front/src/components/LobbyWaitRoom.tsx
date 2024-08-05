@@ -1,6 +1,9 @@
+import { useState } from "react";
 import Button from "./Button";
-import { Player } from "./Lobby";
+import { GameOptions, Player } from "./Lobby";
 import PlayerBoxes from "./PlayerBoxes";
+import Input from "./Input";
+import { mainViewCols } from "./constants";
 
 function copyToClipboard(data: string) {
   navigator.clipboard.writeText(data).then(
@@ -21,18 +24,45 @@ export default function LobbyWaitRoom({
   players: Player[];
   user: string;
   shareUrl: string;
-  startGame: () => void;
+  startGame: (options: GameOptions) => void;
 }) {
   const isAdmin = players.find((player) => player.Name === user)?.Admin;
+
+  const [rounds, setRounds] = useState(5);
+  const [guessTime, setGuessTime] = useState(30);
 
   // No current player since we are in the waiting room.
   const currentPlayer = "";
   return (
     <>
-      <PlayerBoxes players={players} current={currentPlayer} user={user} />
+      <div className={mainViewCols}>
+        <PlayerBoxes players={players} current={currentPlayer} user={user} />
 
+        <div>
+          <div className="mt-8 mb-4"> Options</div>
+          <div className="flex flex-col gap-y-4">
+            <Input
+              type="number"
+              value={rounds}
+              onChange={(e) => setRounds(e.target.value)}
+              label="Max rounds"
+            />
+            <Input
+              type="number"
+              value={guessTime}
+              onChange={(e) => setGuessTime(e.target.value)}
+              label="Guess time (sec)"
+            />
+          </div>
+        </div>
+      </div>
       {isAdmin && (
-        <Button className="mr-4" onClick={startGame}>
+        <Button
+          className="mr-4"
+          onClick={() =>
+            startGame({ Rounds: rounds, GuessTimeSeconds: guessTime })
+          }
+        >
           Start game !
         </Button>
       )}

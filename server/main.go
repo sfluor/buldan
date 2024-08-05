@@ -47,6 +47,11 @@ type Player struct {
 	conn *websocket.Conn
 }
 
+type GameOptions struct {
+	Rounds           int
+	GuessTimeSeconds int
+}
+
 type EventType string
 
 const (
@@ -97,8 +102,9 @@ type Guess struct {
 }
 
 type ClientEvent struct {
-	Type  ClientEventType
-	Guess string
+	Type    ClientEventType
+	Options GameOptions
+	Guess   string
 }
 
 func (p *Player) send(ctx context.Context, data []byte) error {
@@ -119,6 +125,8 @@ type lobby struct {
 	rounds []*Round
 
 	letters []byte
+
+	opts GameOptions
 
 	close func()
 }
@@ -445,6 +453,10 @@ func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent
 	case ClientEventTypeStartGame:
 		if l.isAdmin(from) {
 			l.started = true
+			l.opts = clientEvent.Options
+
+			log.Printf("Starting with game options: %+v", l.opts)
+
 			if err := l.newRound(ctx); err != nil {
 				return fmt.Errorf("failed to create new round: %w", err)
 			}

@@ -16,6 +16,8 @@ export const secondaryColorTxt = "text-indigo-500";
 
 export const errorColorTxt = "text-red-500";
 
+export const mainViewCols = "grid md:grid-cols-2 grid-cols-1";
+
 // TODO
 const env = process.env.NODE_ENV;
 export const HOST =

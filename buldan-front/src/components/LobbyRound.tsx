@@ -4,6 +4,7 @@ import { Player, RoundState } from "./Lobby";
 import Button from "./Button";
 import PlayerBoxes from "./PlayerBoxes";
 import GuessBoxes from "./GuessBoxes";
+import { mainViewCols } from "./constants";
 
 export default function LobbyRound({
   user,
@@ -52,7 +53,7 @@ export default function LobbyRound({
         </>
       )}
 
-      <div className="grid grid-cols-2">
+      <div className={mainViewCols}>
         <PlayerBoxes
           players={players}
           playersOut={round.PlayersOut}
