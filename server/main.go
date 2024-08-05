@@ -290,11 +290,11 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 	}
 
 	guess = strings.ToLower(guess)
-	country, correct := round.remainingCountries.guess(guess)
+	country, guessStr, correct := round.remainingCountries.guess(guess)
 
 	round.Guesses = append(round.Guesses, Guess{
 		Player:  from,
-		Guess:   fmt.Sprintf("%s > %s", guess, country.Name),
+		Guess:   guessStr,
 		Flag:    country.Flag,
 		Correct: correct,
 	})

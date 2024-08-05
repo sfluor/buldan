@@ -8,6 +8,7 @@ import (
 )
 
 const minScore = 0.85
+const minScoreExact = 0.95
 
 type rawCountry struct {
 	name string
@@ -34,7 +35,7 @@ func (c *Countries) remaining() int {
 	return len(c.byName)
 }
 
-func (c *Countries) guess(guess string) (Country, bool) {
+func (c *Countries) guess(guess string) (Country, string, bool) {
 	normalizedQuery := normalize(guess)
 
 	// countryScore holds a country name and its similarity score
@@ -56,11 +57,16 @@ func (c *Countries) guess(guess string) (Country, bool) {
 	}
 
 	valid := match.score >= minScore
+	guessStr := guess
 	if valid {
 		delete(c.byName, match.key)
+
+		if match.score < minScoreExact {
+			guessStr = fmt.Sprintf("%s (%s)", guess, match.country.Name)
+		}
 	}
 
-	return match.country, valid
+	return match.country, guessStr, valid
 }
 
 // Letter -> Normalized Name -> Country
