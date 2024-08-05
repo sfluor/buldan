@@ -2,7 +2,7 @@ import GuessBox from "./GuessBox";
 import { Guess } from "./Lobby";
 
 export default function GuessBoxes({ guesses }: { guesses: Guess[] }) {
-  const reversed: Guess[] = guesses.toReversed();
+  const reversed: Guess[] = [...guesses].reverse();
 
   return (
     <div>
