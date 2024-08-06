@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"maps"
+	"sort"
 
 	mrand "math/rand"
 )
@@ -39,6 +40,10 @@ func countriesStartingWith(char byte) Countries {
 	for _, c := range byName {
 		all = append(all, c)
 	}
+
+	sort.Slice(all, func(i, j int) bool {
+		return all[i].NormalizedName < all[j].NormalizedName
+	})
 
 	return Countries{byName: maps.Clone(byName), all: all, guessedBy: map[string]string{}}
 }
