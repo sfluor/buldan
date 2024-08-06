@@ -20,7 +20,7 @@ import (
 // TODO better logging
 
 const (
-	hardDisconnectDelay = 10 * time.Second
+	hardDisconnectDelay = 60 * time.Second
 	newRoundDelaySec    = 10
 )
 

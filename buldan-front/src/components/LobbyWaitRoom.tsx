@@ -5,14 +5,26 @@ import PlayerBoxes from "./PlayerBoxes";
 import Input from "./Input";
 import { mainViewCols } from "./constants";
 
-function copyToClipboard(data: string) {
-  navigator.clipboard.writeText(data).then(
-    () => console.log("Successfully copied data to clipboard"),
-    (err) => {
-      console.error("Failed to copy to clipboard", err);
-      alert("Copy to clipboard failed");
-    },
-  );
+function share(url: string, title: string) {
+  if (navigator.share) {
+    navigator.share({ url, title }).then(
+      () => console.log("Successfully shared"),
+      (err) => {
+        console.error("Failed to share", err);
+        alert("Share failed");
+      },
+    );
+  } else if (navigator.clipboard) {
+    navigator.clipboard.writeText(url).then(
+      () => console.log("Successfully copied data to clipboard"),
+      (err) => {
+        console.error("Failed to copy to clipboard", err);
+        alert("Copy to clipboard failed");
+      },
+    );
+  } else {
+    alert("Copy share URL: " + url);
+  }
 }
 
 function toInt(v: string | number) {
@@ -97,7 +109,7 @@ export default function LobbyWaitRoom({
           Start game !
         </Button>
       )}
-      <Button secondary onClick={() => copyToClipboard(shareUrl)}>
+      <Button secondary onClick={() => share(shareUrl, "Join Buldan game !")}>
         Share lobby !
       </Button>
     </>
