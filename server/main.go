@@ -20,7 +20,6 @@ import (
 // TODO better logging
 
 const (
-	guessesPerTurn      = 3
 	hardDisconnectDelay = 10 * time.Second
 	newRoundDelay       = 15 * time.Second
 )
@@ -49,8 +48,9 @@ type Player struct {
 }
 
 type GameOptions struct {
-	Rounds           int
-	GuessTimeSeconds int
+	Rounds             int
+	MaxGuessesPerRound int
+	GuessTimeSeconds   int
 }
 
 type EventType string
@@ -71,13 +71,16 @@ const (
 	ClientEventTypeStartGame = "start-game"
 )
 
+type PlayerStatus struct {
+	RemainingGuesses int
+}
+
 type Round struct {
 	Round int
 
-	PlayersOut map[string]bool
+	PlayersStatuses map[string]*PlayerStatus
 
-	CurrentPlayerIndex            int
-	CurrentPlayerRemainingGuesses int
+	CurrentPlayerIndex int
 
 	Letter string // string to ease the conversion to ASCII in JSON
 
@@ -366,14 +369,19 @@ func (l *lobby) newRoundUnsafe(ctx context.Context) error {
 	}
 
 	round := Round{
-		Round:                         len(l.rounds) + 1,
-		Letter:                        string(letter),
-		CurrentPlayerIndex:            currentPlayerIndex,
-		CurrentPlayerRemainingGuesses: guessesPerTurn,
-		PlayersOut:                    map[string]bool{},
-		Guesses:                       []Guess{},
-		Remaining:                     countries.remaining(),
-		remainingCountries:            countries,
+		Round:              len(l.rounds) + 1,
+		Letter:             string(letter),
+		CurrentPlayerIndex: currentPlayerIndex,
+		PlayersStatuses:    map[string]*PlayerStatus{},
+		Guesses:            []Guess{},
+		Remaining:          countries.remaining(),
+		remainingCountries: countries,
+	}
+
+	for _, p := range l.players {
+		round.PlayersStatuses[p.Name] = &PlayerStatus{
+			RemainingGuesses: l.opts.MaxGuessesPerRound,
+		}
 	}
 
 	l.rounds = append(l.rounds, &round)
@@ -403,11 +411,12 @@ func (l *lobby) nextPlayer() (done bool) {
 		}
 
 		p := l.players[round.CurrentPlayerIndex]
-		if !round.PlayersOut[p.Name] && p.Connected {
-			round.CurrentPlayerRemainingGuesses = guessesPerTurn
+		// We found a player that didn't loose yet and is still connected
+		if round.PlayersStatuses[p.Name].RemainingGuesses > 0 && p.Connected {
 			return false
 		}
 
+		// We navigated through all the players, let's start a new round
 		if round.CurrentPlayerIndex == start {
 			return true
 		}
@@ -445,9 +454,9 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 			return l.newRoundUnsafe(ctx)
 		}
 	} else {
-		round.CurrentPlayerRemainingGuesses--
-		if round.CurrentPlayerRemainingGuesses <= 0 {
-			round.PlayersOut[from] = true
+		status := round.PlayersStatuses[from]
+		status.RemainingGuesses--
+		if status.RemainingGuesses <= 0 {
 			if l.nextPlayer() {
 				return l.newRoundUnsafe(ctx)
 			}
@@ -592,11 +601,13 @@ func (lm *lobbyManager) join(
 			clientEvent := ClientEvent{}
 			if err := json.Unmarshal(data, &clientEvent); err != nil {
 				log.Printf("[ERROR] Failed to decode client event: %s: %s", data, err)
+				errOutWS(conn, fmt.Sprintf("Couldn't decode client event: %s", err), websocket.StatusInternalError)
 				return
 			}
 
 			if err := lobby.handle(ctx, playerName, clientEvent); err != nil {
 				log.Printf("[ERROR] Failed to handle client event: %s: %s", data, err)
+				errOutWS(conn, fmt.Sprintf("Couldn't handle client event: %s", err), websocket.StatusInternalError)
 				return
 			}
 		}

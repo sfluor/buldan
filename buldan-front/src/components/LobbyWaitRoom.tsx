@@ -15,6 +15,14 @@ function copyToClipboard(data: string) {
   );
 }
 
+function toInt(v: string | number) {
+  if (typeof v === "string") {
+    return parseInt(v);
+  }
+
+  return v;
+}
+
 export default function LobbyWaitRoom({
   players,
   user,
@@ -28,8 +36,9 @@ export default function LobbyWaitRoom({
 }) {
   const isAdmin = players.find((player) => player.Name === user)?.Admin;
 
-  const [rounds, setRounds] = useState(5);
-  const [guessTime, setGuessTime] = useState(30);
+  const [rounds, setRounds] = useState<string | number>(5);
+  const [guessesPerRound, setGuessesPerRound] = useState<string | number>(3);
+  const [guessTime, setGuessTime] = useState<string | number>(30);
 
   // No current player since we are in the waiting room.
   const currentPlayer = "";
@@ -40,6 +49,14 @@ export default function LobbyWaitRoom({
           <div>
             <div className="mt-8 mb-4"> Options</div>
             <div className="flex flex-col gap-y-4">
+              <Input
+                type="number"
+                value={guessesPerRound}
+                min={1}
+                max={10}
+                onChange={(e) => setGuessesPerRound(e.target.value)}
+                label="Guesses per round"
+              />
               <Input
                 type="number"
                 value={rounds}
@@ -70,7 +87,11 @@ export default function LobbyWaitRoom({
         <Button
           className="mr-4"
           onClick={() =>
-            startGame({ Rounds: rounds, GuessTimeSeconds: guessTime })
+            startGame({
+              Rounds: toInt(rounds),
+              GuessTimeSeconds: toInt(guessTime),
+              MaxGuessesPerRound: toInt(guessesPerRound),
+            })
           }
         >
           Start game !

@@ -113,7 +113,7 @@ func newLetters() []byte {
 	})
 
 	// TODO: remove me once we finished testing
-	letters[0] = 'y'
+	letters[0] = 'z'
 	return letters
 }
 

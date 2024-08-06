@@ -1,15 +1,15 @@
-import { Player } from "./Lobby";
+import { Player, PlayerStatus } from "./Lobby";
 import PlayerBox from "./PlayerBox";
 
 export default function PlayerBoxes({
   players,
   current,
-  playersOut,
+  playersStatuses,
   user,
 }: {
   players: Player[];
   current: string;
-  playersOut?: Record<string, boolean>;
+  playersStatuses?: Record<string, PlayerStatus>;
   user: string;
 }) {
   const bestScore = Math.max(...players.map(({ Points }) => Points));
@@ -22,7 +22,11 @@ export default function PlayerBoxes({
           key={idx}
           isFirst={bestScore === player.Points && bestScore > 0}
           isPlaying={player.Name === current}
-          hasLost={playersOut ? playersOut[player.Name] : false}
+          hasLost={
+            playersStatuses
+              ? playersStatuses[player.Name].RemainingGuesses <= 0
+              : false
+          }
           isUser={player.Name === user}
         />
       ))}

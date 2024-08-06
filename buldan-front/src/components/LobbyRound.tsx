@@ -25,23 +25,19 @@ export default function LobbyRound({
     return <> Unexpected round not being initialized </>;
   }
 
-  const {
-    Guesses,
-    Remaining,
-    CurrentPlayerRemainingGuesses,
-    CurrentPlayerIndex,
-    Letter,
-  } = round;
+  const { Guesses, Remaining, CurrentPlayerIndex, Letter } = round;
 
   const currentPlayer = players[CurrentPlayerIndex].Name;
   const isPlaying = currentPlayer === user;
+
+  const remainingGuesses =
+    round.PlayersStatuses[currentPlayer].RemainingGuesses;
 
   return (
     <>
       <div>
         Countries starting with <b className="text-2xl capitalize">{Letter}</b>,{" "}
-        {Remaining} remaining to guess, {CurrentPlayerRemainingGuesses} attempts
-        remaining{" "}
+        {Remaining} remaining to guess, {remainingGuesses} attempts remaining{" "}
       </div>
 
       {isPlaying && (
@@ -56,7 +52,7 @@ export default function LobbyRound({
       <div className={mainViewCols}>
         <PlayerBoxes
           players={players}
-          playersOut={round.PlayersOut}
+          playersStatuses={round.PlayersStatuses}
           current={currentPlayer}
           user={user}
         />

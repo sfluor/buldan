@@ -14,6 +14,10 @@ export interface Player {
   Connected: boolean;
 }
 
+export interface PlayerStatus {
+  RemainingGuesses: number;
+}
+
 interface Notification {
   message: string;
   error?: boolean;
@@ -29,15 +33,15 @@ export interface Guess {
 export interface GameOptions {
   Rounds: number;
   GuessTimeSeconds: number;
+  MaxGuessesPerRound: number;
 }
 
 export interface RoundState {
   Guesses: Guess[];
   Letter: string;
-  PlayersOut: Record<string, boolean>;
+  PlayersStatuses: Record<string, PlayerStatus>;
   Remaining: number;
   CurrentPlayerIndex: number;
-  CurrentPlayerRemainingGuesses: number;
 }
 
 export interface Country {
