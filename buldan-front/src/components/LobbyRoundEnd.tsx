@@ -1,4 +1,4 @@
-import { mainViewCols } from "./constants";
+import { mainViewCols, strongGreenTxt, strongRedTxt } from "./constants";
 import GuessBoxes from "./GuessBoxes";
 import { Country, EndRound } from "./Lobby";
 
@@ -7,7 +7,7 @@ function CountryLine({
 }: {
   country: Country;
 }) {
-  const color = GuessedBy ? "text-green-700" : "text-red-700";
+  const color = GuessedBy ? strongGreenTxt : strongRedTxt;
   const className = `${color} my-4 capitalize text-2xl`;
 
   let suffix = "";

@@ -1,3 +1,4 @@
+import { strongGreenTxt, strongRedTxt } from "./constants";
 import { Guess } from "./Lobby";
 
 export default function GuessBox({
@@ -13,7 +14,7 @@ export default function GuessBox({
   return (
     <div className="my-4 capitalize text-2xl">
       {prefix}{" "}
-      <i className={Correct ? "text-green-700" : "text-red-700"}>{Guess} </i>
+      <i className={Correct ? strongGreenTxt : strongRedTxt}>{Guess} </i>
       from <b>{Player}</b>
     </div>
   );
