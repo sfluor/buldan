@@ -21,7 +21,7 @@ import (
 
 const (
 	hardDisconnectDelay = 10 * time.Second
-	newRoundDelay       = 15 * time.Second
+	newRoundDelaySec    = 10
 )
 
 func errOut(w http.ResponseWriter, msg string, code int) {
@@ -60,6 +60,7 @@ const (
 	EventTypeGuess       = "guess"
 	EventTypeLoose       = "loose"
 	EventTypeRoundUpdate = "round-update"
+	EventTypeTick        = "tick"
 	EventTypeEndRound    = "end-round"
 	EventTypeEnd         = "end"
 )
@@ -82,6 +83,8 @@ type Round struct {
 
 	CurrentPlayerIndex int
 
+	currentPlayerRemainingSec int
+
 	Letter string // string to ease the conversion to ASCII in JSON
 
 	Guesses []Guess
@@ -90,6 +93,11 @@ type Round struct {
 	// though we could infer it from the one below
 	remainingCountries Countries
 	Remaining          int
+}
+
+type EventTick struct {
+	Type         EventType
+	RemainingSec int
 }
 
 type EventRound struct {
@@ -126,12 +134,22 @@ func (p *Player) send(ctx context.Context, data []byte) error {
 	return nil
 }
 
+type lobbyState string
+
+const (
+	lobbyStateWaitRoom      = "wait-room"
+	lobbyStateRound         = "round"
+	lobbyStateBetweenRounds = "between-rounds"
+)
+
 type lobby struct {
 	sync.Mutex
 
 	started bool
 	id      string
 	players []*Player
+
+	state lobbyState
 
 	rounds []*Round
 
@@ -150,6 +168,40 @@ func (l *lobby) broadcastJSON(ctx context.Context, data any) error {
 
 	log.Printf("[lobby:%s] Broadcasting: %+v", l.id, data)
 	return l.broadcast(ctx, encoded)
+}
+
+func (l *lobby) maybeBroadcastTick(ctx context.Context, period int) error {
+	// TODO
+	l.Lock()
+	defer l.Unlock()
+
+	switch l.state {
+	case lobbyStateWaitRoom:
+		// Nothing to tick in the wait room
+		return nil
+	case lobbyStateRound:
+		round := l.currentRound()
+		if round == nil {
+			return fmt.Errorf("Expected round to exist in state: %s", lobbyStateRound)
+		}
+
+		round.currentPlayerRemainingSec -= period
+		if round.currentPlayerRemainingSec <= 0 {
+			player := l.players[round.CurrentPlayerIndex]
+			round.PlayersStatuses[player.Name].RemainingGuesses = 0
+			return l.nextPlayerAndMaybeNewRound(ctx, round)
+		}
+
+		log.Printf("ticking from %s: %s (remaining: %d)", l.state, l.id, round.currentPlayerRemainingSec)
+		return l.broadcastJSON(ctx, EventTick{
+			Type:         EventTypeTick,
+			RemainingSec: round.currentPlayerRemainingSec,
+		})
+	case lobbyStateBetweenRounds:
+		return fmt.Errorf("not expected to tick between rounds")
+	}
+
+	return nil
 }
 
 func (l *lobby) currentRound() *Round {
@@ -225,8 +277,8 @@ func (l *lobby) hardDisconnect(player string) error {
 
 			// TODO dedupe this with above
 			// If the player was this one move to the next player
-			if wasPlaying && l.nextPlayer() {
-				return l.newRoundUnsafe(context.Background())
+			if wasPlaying {
+				return l.nextPlayerAndMaybeNewRound(context.Background(), round)
 			}
 
 			return nil
@@ -360,22 +412,41 @@ func (l *lobby) newRoundUnsafe(ctx context.Context) error {
 			Countries: lastRound.remainingCountries.status(),
 		}
 
+		l.state = lobbyStateBetweenRounds
+
 		if err := l.broadcastJSON(ctx, endRound); err != nil {
 			return err
 		}
 
-		// TODO don't lock for the whole period
-		time.Sleep(newRoundDelay)
+		// TODO not great since we block the lobby
+		// this could be a cond unlocked by the real ticker instead
+		rem := newRoundDelaySec
+		for range time.Tick(time.Second) {
+			if rem == 0 {
+				break
+			}
+
+			rem -= 1
+			if err := l.broadcastJSON(ctx, EventTick{
+				RemainingSec: rem,
+				Type:         EventTypeTick,
+			}); err != nil {
+				return err
+			}
+		}
 	}
 
+	l.state = lobbyStateRound
+
 	round := Round{
-		Round:              len(l.rounds) + 1,
-		Letter:             string(letter),
-		CurrentPlayerIndex: currentPlayerIndex,
-		PlayersStatuses:    map[string]*PlayerStatus{},
-		Guesses:            []Guess{},
-		Remaining:          countries.remaining(),
-		remainingCountries: countries,
+		Round:                     len(l.rounds) + 1,
+		Letter:                    string(letter),
+		CurrentPlayerIndex:        currentPlayerIndex,
+		currentPlayerRemainingSec: l.opts.GuessTimeSeconds,
+		PlayersStatuses:           map[string]*PlayerStatus{},
+		Guesses:                   []Guess{},
+		Remaining:                 countries.remaining(),
+		remainingCountries:        countries,
 	}
 
 	for _, p := range l.players {
@@ -399,6 +470,18 @@ func (l *lobby) newRound(ctx context.Context) error {
 	return l.newRoundUnsafe(ctx)
 }
 
+func (l *lobby) nextPlayerAndMaybeNewRound(ctx context.Context, currRound *Round) error {
+	if l.nextPlayer() {
+		return l.newRoundUnsafe(ctx)
+	}
+
+	return l.broadcastJSON(ctx, EventRound{
+		Type:    EventTypeRoundUpdate,
+		Round:   currRound,
+		Players: l.players,
+	})
+}
+
 func (l *lobby) nextPlayer() (done bool) {
 	round := l.currentRound()
 
@@ -413,6 +496,7 @@ func (l *lobby) nextPlayer() (done bool) {
 		p := l.players[round.CurrentPlayerIndex]
 		// We found a player that didn't loose yet and is still connected
 		if round.PlayersStatuses[p.Name].RemainingGuesses > 0 && p.Connected {
+			round.currentPlayerRemainingSec = l.opts.GuessTimeSeconds
 			return false
 		}
 
@@ -450,16 +534,12 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 		if round.Remaining == 0 {
 			return l.newRoundUnsafe(ctx)
 		}
-		if l.nextPlayer() {
-			return l.newRoundUnsafe(ctx)
-		}
+		return l.nextPlayerAndMaybeNewRound(ctx, round)
 	} else {
 		status := round.PlayersStatuses[from]
 		status.RemainingGuesses--
 		if status.RemainingGuesses <= 0 {
-			if l.nextPlayer() {
-				return l.newRoundUnsafe(ctx)
-			}
+			return l.nextPlayerAndMaybeNewRound(ctx, round)
 		}
 	}
 
@@ -530,16 +610,39 @@ func (lm *lobbyManager) create() string {
 	defer lm.Unlock()
 
 	id := lm.nextGameID()
-	lm.instances[id] = &lobby{id: id,
+
+	done := make(chan bool)
+
+	lobby := &lobby{id: id,
 		letters: newLetters(),
+		state:   lobbyStateWaitRoom,
 		close: func() {
 			lm.Lock()
 			defer lm.Unlock()
+			done <- true
 
 			delete(lm.instances, id)
 			log.Printf("Closed lobby instance: %s", id)
 		}}
 
+	// Async worker to notify users when waiting for an answer / at the end of rounds.
+	go func() {
+		period := 1
+		ticker := time.Tick(time.Duration(period) * time.Second)
+		for {
+			select {
+			case <-ticker:
+				if err := lobby.maybeBroadcastTick(context.Background(), period); err != nil {
+					log.Printf("[ERROR] Failed to broadcast tick: %s", err)
+				}
+			case <-done:
+				log.Printf("exiting ticker from %s", id)
+				return
+			}
+		}
+	}()
+
+	lm.instances[id] = lobby
 	return id
 }
 

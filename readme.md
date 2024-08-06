@@ -3,6 +3,7 @@
 
 ### todos
 
+- max rounds
 - pick nickname
 - auto-reconnect
 - persist game history

@@ -11,10 +11,12 @@ export default function LobbyRound({
   round,
   players,
   sendGuess,
+  remainingSec,
 }: {
   user: string;
   round: RoundState | null;
   players: Player[];
+  remainingSec: number | null;
   sendGuess: (guess: string) => void;
 }) {
   // Must to that before the early return.
@@ -37,7 +39,8 @@ export default function LobbyRound({
     <>
       <div>
         Countries starting with <b className="text-2xl capitalize">{Letter}</b>,{" "}
-        {Remaining} remaining to guess, {remainingGuesses} attempts remaining{" "}
+        {Remaining} remaining to guess, {remainingGuesses} attempts remaining
+        {remainingSec === null ? "" : `, ${remainingSec} seconds remaining...`}
       </div>
 
       {isPlaying && (

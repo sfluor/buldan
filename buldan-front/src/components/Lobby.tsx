@@ -63,6 +63,7 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
   const [notif, setNotif] = useState<Notification | null>(null);
   const [round, setRound] = useState<RoundState | null>(null);
   const [endRound, setEndRound] = useState<EndRound | null>(null);
+  const [remainingSec, setRemainingSec] = useState<number | null>(null);
 
   // (otherwise not happy about the any)
   // eslint-disable-next-line
@@ -124,15 +125,19 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
 
     ws.current.onmessage = function (event) {
       const json = JSON.parse(event.data);
-      if (json.Type === "players") {
+      if (json.Type === "tick") {
+        setRemainingSec(json.RemainingSec);
+      } else if (json.Type === "players") {
         setPlayers([...json.Players]);
         console.log("Set players", json);
       } else if (json.Type === "new-round" || json.Type === "round-update") {
+        setRemainingSec(null);
         setEndRound(null);
         setRound(json.Round);
         setPlayers(json.Players);
         console.log("Round update", json);
       } else if (json.Type === "end-round") {
+        setRemainingSec(null);
         setRound(null);
         setEndRound(json);
         console.log("end round", json);
@@ -153,7 +158,7 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
         });
       }
     };
-  }, [notif, setLocation, setRound, setPlayers]);
+  }, [notif, setLocation, setRound, setPlayers, setRemainingSec]);
 
   let component;
   if (round === null && endRound === null) {
@@ -172,10 +177,13 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
         round={round}
         players={players}
         sendGuess={sendGuess}
+        remainingSec={remainingSec}
       />
     );
   } else if (endRound != null) {
-    component = <LobbyRoundEnd endRound={endRound} />;
+    component = (
+      <LobbyRoundEnd remainingSec={remainingSec} endRound={endRound} />
+    );
   } else {
     component = <div> Unexpected lobby state ! </div>;
   }
