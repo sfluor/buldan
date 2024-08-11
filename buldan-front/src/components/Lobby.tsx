@@ -7,6 +7,11 @@ import LobbyRound from "./LobbyRound";
 import BuldanText from "./BuldanText";
 import LobbyRoundEnd from "./LobbyRoundEnd";
 
+export enum Language {
+  French = "french",
+  English = "english",
+}
+
 export interface Player {
   Name: string;
   Admin: boolean;
@@ -31,6 +36,7 @@ export interface Guess {
 }
 
 export interface GameOptions {
+  Language: Language;
   Rounds: number;
   GuessTimeSeconds: number;
   MaxGuessesPerRound: number;

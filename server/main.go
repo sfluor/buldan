@@ -48,6 +48,7 @@ type Player struct {
 }
 
 type GameOptions struct {
+	Language           Language
 	Rounds             int
 	MaxGuessesPerRound int
 	GuessTimeSeconds   int
@@ -398,7 +399,10 @@ func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn
 func (l *lobby) newRoundUnsafe(ctx context.Context) error {
 	// TODO Careful of too many rounds
 	letter := l.letters[len(l.rounds)]
-	countries := countriesStartingWith(byte(letter))
+	countries, err := countriesStartingWith(l.opts.Language, byte(letter))
+	if err != nil {
+		return err
+	}
 
 	currentPlayerIndex := 0
 	lastRound := l.currentRound()
@@ -565,6 +569,12 @@ func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent
 			l.started = true
 			l.opts = clientEvent.Options
 
+			letters, err := newLetters(l.opts.Language)
+			if err != nil {
+				return fmt.Errorf("failed to init game: %w", err)
+			}
+			l.letters = letters
+
 			// TODO respect options
 			log.Printf("Starting with game options: %+v", l.opts)
 
@@ -614,8 +624,7 @@ func (lm *lobbyManager) create() string {
 	done := make(chan bool)
 
 	lobby := &lobby{id: id,
-		letters: newLetters(),
-		state:   lobbyStateWaitRoom,
+		state: lobbyStateWaitRoom,
 		close: func() {
 			lm.Lock()
 			defer lm.Unlock()

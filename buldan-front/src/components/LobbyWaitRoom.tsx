@@ -1,9 +1,10 @@
 import { useState } from "react";
 import Button from "./Button";
-import { GameOptions, Player } from "./Lobby";
+import { GameOptions, Player, Language } from "./Lobby";
 import PlayerBoxes from "./PlayerBoxes";
 import Input from "./Input";
 import { mainViewCols } from "./constants";
+import Select from "./Select";
 
 function share(url: string, title: string) {
   if (navigator.share) {
@@ -51,6 +52,7 @@ export default function LobbyWaitRoom({
   const [rounds, setRounds] = useState<string | number>(5);
   const [guessesPerRound, setGuessesPerRound] = useState<string | number>(3);
   const [guessTime, setGuessTime] = useState<string | number>(30);
+  const [lang, setLang] = useState<Language>(Language.English);
 
   // No current player since we are in the waiting room.
   const currentPlayer = "";
@@ -61,6 +63,12 @@ export default function LobbyWaitRoom({
           <div>
             <div className="mt-8 mb-4"> Options</div>
             <div className="flex flex-col gap-y-4">
+              <Select
+                value={lang}
+                onChange={(e) => setLang(e.target.value as Language)}
+                choices={Object.values(Language)}
+                label="Language"
+              />
               <Input
                 type="number"
                 value={guessesPerRound}
@@ -100,6 +108,7 @@ export default function LobbyWaitRoom({
           className="mr-4"
           onClick={() =>
             startGame({
+              Language: lang,
               Rounds: toInt(rounds),
               GuessTimeSeconds: toInt(guessTime),
               MaxGuessesPerRound: toInt(guessesPerRound),
