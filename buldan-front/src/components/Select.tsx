@@ -12,6 +12,7 @@ export default function Select({
   onChange?: (e: React.ChangeEvent<HTMLSelectElement>) => void;
 }) {
   const id = useId();
+  // TODO: quite ugly
   return (
     <label htmlFor={id}>
       {label}
