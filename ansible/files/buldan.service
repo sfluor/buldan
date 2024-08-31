@@ -1,0 +1,10 @@
+[Unit]
+Description=Buldan
+
+[Service]
+User=ubuntu
+Group=ubuntu
+ExecStart=/home/ubuntu/buldan/server/bin/server /home/ubuntu/buldan/buldan-front/dist/
+
+[Install]
+WantedBy=multi-user.target

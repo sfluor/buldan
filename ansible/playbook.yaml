@@ -99,5 +99,17 @@
           state: started
           enabled: yes
 
+      - name: Setup systemd for server
+        copy:
+          src: buldan.service
+          dest: /etc/systemd/system
+          owner: root
+          group: root
+
+      - name: Start buldan
+        service:
+          name: buldan
+          state: restarted
+
       become: true
 
