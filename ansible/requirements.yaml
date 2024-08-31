@@ -5,3 +5,4 @@ collections:
   - name: community.general
     version: 9.2.0
   - name: nginxinc.nginx_core
+  - name: datadog.dd

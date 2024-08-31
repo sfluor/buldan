@@ -6,4 +6,4 @@ cd "$(dirname "$0")"
 cd ../ansible
 
 ansible-galaxy collection install --pre -r requirements.yaml
-ansible-playbook -i inventory.ini playbook.yaml $@
+ansible-playbook -i inventory.ini playbook.yaml --extra-vars "$(cat secrets.txt)" $@

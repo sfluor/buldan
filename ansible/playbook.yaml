@@ -9,6 +9,11 @@
     - name: Ping my hosts
       ansible.builtin.ping:
 
+    - name: Setup the Datadog agent
+      become: true
+      import_role:
+        name: datadog.dd.agent
+
     - name: Checkout repository
       ansible.builtin.git:
         repo: 'https://github.com/sfluor/buldan.git'
