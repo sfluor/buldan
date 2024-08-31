@@ -790,6 +790,7 @@ func main() {
 		manager.join(r.Context(), w, lobbyID, playerName, c)
 	})
 
+    log.Printf("Starting server on %s",listen)
 	if err := http.ListenAndServe(listen, srv); err != nil {
 		panic(err)
 	}
