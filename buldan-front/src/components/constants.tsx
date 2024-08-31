@@ -24,7 +24,7 @@ export const mainViewCols = "grid md:grid-cols-2 grid-cols-1";
 // TODO
 const env = process.env.NODE_ENV;
 export const HOST =
-    env === "development" ? "localhost:8080" : window.location.host;
+  env === "development" ? "localhost:8080" : window.location.host;
 
 const PROTOCOL = window.location.protocol;
 export const SERVER_URL = `${PROTOCOL}//${HOST}/api`;

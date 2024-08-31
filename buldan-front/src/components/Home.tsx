@@ -37,7 +37,7 @@ export default function Home() {
       </div>
       <div className="flex flex-row self-center gap-x-12">
         <Button onClick={createLobby}>New game</Button>
-        <Button secondary>Join game</Button>
+        {/* <Button secondary>Join game</Button>*/}
       </div>
     </div>
   );
