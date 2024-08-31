@@ -3,8 +3,7 @@
 
 ### todos
 
+- links
 - max rounds
-- auto-reconnect
 - persist game history
-- show errors to users
-- french
+- remove remaining todos in the code
