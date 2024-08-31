@@ -24,7 +24,10 @@ export const mainViewCols = "grid md:grid-cols-2 grid-cols-1";
 // TODO
 const env = process.env.NODE_ENV;
 export const HOST =
-  env === "development" ? "localhost:8080" : window.location.host;
-export const SERVER_URL = `http://${HOST}/api`;
-// TODO: wss
-export const LOBBY_URL = `ws://${HOST}/api/lobby`;
+    env === "development" ? "localhost:8080" : window.location.host;
+
+const PROTOCOL = window.location.protocol;
+export const SERVER_URL = `${PROTOCOL}//${HOST}/api`;
+
+const WS_PROTOCOL = PROTOCOL.replace("http", "ws");
+export const LOBBY_URL = `${WS_PROTOCOL}//${HOST}/api/lobby`;

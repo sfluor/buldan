@@ -5,7 +5,7 @@ set -xe
 cd "$(dirname "$0")"
 cd ..
 
-./scripts/build.sh
+./scripts/build
 
 echo "Starting the server..."
 ./server/bin/server ./buldan-front/dist/ $1
