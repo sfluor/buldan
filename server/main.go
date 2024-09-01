@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"os"
 	"path"
@@ -14,25 +13,26 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
 	"nhooyr.io/websocket"
 )
-
-// TODO better logging
 
 const (
 	hardDisconnectDelay = 60 * time.Second
 	newRoundDelaySec    = 10
+	playerKey           = "player"
+	lobbyIDKey          = "lobbyID"
 )
 
-func errOut(w http.ResponseWriter, msg string, code int) {
-	log.Printf("[ERROR] Code:%d | %s", code, msg)
+func errOut(lg *zap.Logger, w http.ResponseWriter, msg string, code int) {
+	lg.Error("An error occurred", zap.Int("code", code), zap.String("message", msg))
 	http.Error(w, msg, code)
 }
 
-func errOutWS(c *websocket.Conn, msg string, code websocket.StatusCode) {
-	log.Printf("[ERROR:WS] Code:%d | %s", code, msg)
+func errOutWS(lg *zap.Logger, c *websocket.Conn, msg string, code websocket.StatusCode) {
+	lg.Error("A websocket error occurred", zap.Any("code", code), zap.String("message", msg))
 	if err := c.Close(code, msg); err != nil {
-		log.Printf("Failed to close websocket: %s", err)
+		lg.Error("Failed to close websocket following error", zap.Error(err), zap.Any("code", code), zap.String("message", msg))
 	}
 }
 
@@ -166,6 +166,7 @@ type lobby struct {
 	letters []byte
 
 	opts GameOptions
+	lg   *zap.Logger
 
 	close func()
 }
@@ -176,7 +177,7 @@ func (l *lobby) broadcastJSON(ctx context.Context, data any) error {
 		return fmt.Errorf("Failed to encode: %+v as JSON: %w", data, err)
 	}
 
-	log.Printf("[lobby:%s] Broadcasting: %+v", l.id, data)
+	l.lg.Info("Broadcast call", zap.Any("payload", data))
 	return l.broadcast(ctx, encoded)
 }
 
@@ -202,7 +203,7 @@ func (l *lobby) maybeBroadcastTick(ctx context.Context, period int) error {
 			return l.nextPlayerAndMaybeNewRound(ctx, round)
 		}
 
-		log.Printf("ticking from %s: %s (remaining: %d)", l.state, l.id, round.currentPlayerRemainingSec)
+		l.lg.Debug("Tick", zap.String("state", string(l.state)), zap.Int("remainingSeconds", round.currentPlayerRemainingSec))
 		return l.broadcastJSON(ctx, EventTick{
 			Type:         EventTypeTick,
 			RemainingSec: round.currentPlayerRemainingSec,
@@ -260,12 +261,12 @@ func (l *lobby) hardDisconnect(player string) error {
 
 			l.players = append(l.players[:i], l.players[i+1:]...)
 
-			log.Printf("hard-disconnecting player %s from %s", player, l.id)
+			l.lg.Info("Hard disconnecting player", zap.String(playerKey, player))
 
 			if len(l.players) == 0 {
 				// No more players let's close the lobby
 				l.close()
-				log.Printf("Closing lobby %s after all players left", l.id)
+				l.lg.Info("Closing lobby after all players left")
 				return nil
 			}
 
@@ -346,7 +347,7 @@ func (l *lobby) disconnect(ctx context.Context, player string) error {
 				}
 			}
 
-			log.Printf("Player %s disconnected", player)
+			l.lg.Info("Player disconnected", zap.String(playerKey, player))
 
 			// Broadcast the new players
 			return l.broadcastPlayers(ctx)
@@ -374,7 +375,7 @@ func (l *lobby) reconnect(ctx context.Context, player *Player, conn *websocket.C
 	player.conn = conn
 	player.Connected = true
 
-	log.Printf("Player %s reconnected", player.Name)
+	l.lg.Info("Player reconnected", zap.String(playerKey, player.Name))
 
 	// Notify all the players of the new player
 	if err := l.broadcastPlayers(ctx); err != nil {
@@ -607,7 +608,7 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 }
 
 func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent) error {
-	log.Printf("Received client event: %+v from %s", clientEvent, from)
+	l.lg.Info("Received client event", zap.String(playerKey, from), zap.Any("event", clientEvent))
 
 	switch clientEvent.Type {
 	case ClientEventTypeStartGame:
@@ -623,13 +624,13 @@ func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent
 			}
 			l.letters = letters
 
-			log.Printf("Starting with game options: %+v", l.opts)
+			l.lg.Info("Starting game", zap.Any("options", l.opts))
 
 			if err := l.newRound(ctx); err != nil {
 				return fmt.Errorf("failed to create new round: %w", err)
 			}
 		} else {
-			log.Printf("Ignoring start game from %s who's not the admin", from)
+			l.lg.Warn("Ignoring start game from non-admin player", zap.String(playerKey, from))
 		}
 	case ClientEventTypeGuess:
 		if err := l.handleGuess(ctx, from, clientEvent.Guess); err != nil {
@@ -642,6 +643,7 @@ func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent
 
 type lobbyManager struct {
 	sync.Mutex
+	lg        *zap.Logger
 	instances map[string]*lobby
 }
 
@@ -672,13 +674,14 @@ func (lm *lobbyManager) create() string {
 
 	lobby := &lobby{id: id,
 		state: lobbyStateWaitRoom,
+        lg: lm.lg.With(zap.String(lobbyIDKey, id)),
 		close: func() {
 			lm.Lock()
 			defer lm.Unlock()
 			done <- true
 
 			delete(lm.instances, id)
-			log.Printf("Closed lobby instance: %s", id)
+			lm.lg.Info("Closed lobby instance", zap.String(lobbyIDKey, id))
 		}}
 
 	// Async worker to notify users when waiting for an answer / at the end of rounds.
@@ -689,10 +692,10 @@ func (lm *lobbyManager) create() string {
 			select {
 			case <-ticker:
 				if err := lobby.maybeBroadcastTick(context.Background(), period); err != nil {
-					log.Printf("[ERROR] Failed to broadcast tick: %s", err)
+					lm.lg.Error("Failed to broadcast tick", zap.Error(err))
 				}
 			case <-done:
-				log.Printf("exiting ticker from %s", id)
+				lm.lg.Info("Exiting ticker", zap.String(lobbyIDKey, id))
 				return
 			}
 		}
@@ -717,10 +720,15 @@ func (lm *lobbyManager) join(
 	playerName string,
 	conn *websocket.Conn) {
 
+	logFields := []zap.Field{
+		zap.String(lobbyIDKey, lobbyID),
+		zap.String(playerKey, playerName),
+	}
+
 	lobby, found := lm.get(lobbyID)
 	if !found {
 		// Not internal technically but...
-		errOutWS(conn, fmt.Sprintf("No lobby exist with id: %s", lobbyID), websocket.StatusInternalError)
+		errOutWS(lm.lg, conn, fmt.Sprintf("No lobby exist with id: %s", lobbyID), websocket.StatusInternalError)
 		return
 	}
 
@@ -729,44 +737,45 @@ func (lm *lobbyManager) join(
 	// Technically there could be a race condition changing player here if it becomes admin for instance.
 	err := lobby.addPlayer(ctx, playerName, conn)
 	if err != nil {
-		errOutWS(conn, fmt.Sprintf("Couldn't join lobby: %s", err), websocket.StatusInternalError)
+		errOutWS(lm.lg, conn, fmt.Sprintf("Couldn't join lobby: %s", err), websocket.StatusInternalError)
 		return
 	}
 
 	defer func() {
 		if err := lobby.disconnect(context.Background(), playerName); err != nil {
-			log.Printf("Failed to notify players from %s disconnecting: %s", playerName, err)
+			lm.lg.Error("Failed to notify for player disconnection", append([]zap.Field{zap.Error(err)}, logFields...)...)
 		}
 	}()
 
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("Player %s disconnected", playerName)
+			lm.lg.Info("Player disconnection", zap.String(playerKey, playerName), zap.String(lobbyIDKey, lobbyID))
 		default:
 			_, data, err := conn.Read(ctx)
 			if err != nil {
 				var status websocket.CloseError
 				if errors.As(err, &status) && (status.Code == websocket.StatusGoingAway || status.Code == websocket.StatusNormalClosure) {
 					// Expected just return
-					log.Printf("%s disconnected status: %+v", playerName, status)
+					lm.lg.Info("Websocket disconnection status", append([]zap.Field{zap.Any("status", status)}, logFields...)...)
+
 					return
 				}
 
-				log.Printf("[ERROR] Reading from websocket for %s: %s", playerName, err)
+				lm.lg.Error("Failed to read from websocket", append([]zap.Field{zap.Error(err)}, logFields...)...)
 				return
 			}
 
 			clientEvent := ClientEvent{}
 			if err := json.Unmarshal(data, &clientEvent); err != nil {
-				log.Printf("[ERROR] Failed to decode client event: %s: %s", data, err)
-				errOutWS(conn, fmt.Sprintf("Couldn't decode client event: %s", err), websocket.StatusInternalError)
+				lm.lg.Error("Failed to decode payload", append([]zap.Field{zap.Error(err), zap.String("payload", string(data))}, logFields...)...)
+				errOutWS(lm.lg, conn, fmt.Sprintf("Couldn't decode client event: %s", err), websocket.StatusInternalError)
 				return
 			}
 
 			if err := lobby.handle(ctx, playerName, clientEvent); err != nil {
-				log.Printf("[ERROR] Failed to handle client event: %s: %s", data, err)
-				errOutWS(conn, fmt.Sprintf("Couldn't handle client event: %s", err), websocket.StatusInternalError)
+				lm.lg.Error("Failed to handle payload", append([]zap.Field{zap.Error(err), zap.String("payload", string(data))}, logFields...)...)
+				errOutWS(lm.lg, conn, fmt.Sprintf("Couldn't handle client event: %s", err), websocket.StatusInternalError)
 				return
 			}
 		}
@@ -783,6 +792,8 @@ func main() {
 		listen = os.Args[2]
 	}
 
+	logger, _ := zap.NewProduction()
+
 	fs := http.FileServer(http.Dir(statics))
 
 	// https://stackoverflow.com/a/64687181, routing to SPA
@@ -793,7 +804,7 @@ func main() {
 			_, err := os.Stat(fullPath)
 			if err != nil {
 				if !os.IsNotExist(err) {
-					errOut(w, "File not found", 404)
+					errOut(logger, w, "File not found", 404)
 				}
 				// Requested file does not exist so we return the default (resolves to index.html)
 				r.URL.Path = "/"
@@ -804,17 +815,17 @@ func main() {
 
 	srv.Handle("/api/", http.StripPrefix("/api", api))
 
-	manager := &lobbyManager{instances: make(map[string]*lobby)}
+	manager := &lobbyManager{lg: logger, instances: make(map[string]*lobby)}
 
 	api.HandleFunc("POST /new-lobby", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
 		w.Header().Set("Content-Type", "application/json")
 
 		id := manager.create()
-		log.Printf("Creating new lobby, id: %s", id)
+		logger.Info("Creating new lobby", zap.String(lobbyIDKey, id))
 
 		if err := json.NewEncoder(w).Encode(map[string]string{"id": id}); err != nil {
-			errOut(w, err.Error(), 500)
+			errOut(logger, w, err.Error(), 500)
 			return
 		}
 	})
@@ -824,12 +835,12 @@ func main() {
 
 		lobbyID := r.PathValue("id")
 		playerName := r.PathValue("name")
-		log.Printf("Player [%s] connecting to lobby with ID: %s", playerName, lobbyID)
+		logger.Info("New player connection", zap.String(playerKey, playerName), zap.String(lobbyIDKey, lobbyID))
 
 		c, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
 
 		if err != nil {
-			errOut(w, fmt.Sprintf("error accepting websocket: %s", err), 500)
+			errOut(logger, w, fmt.Sprintf("error accepting websocket: %s", err), 500)
 			return
 		}
 		defer c.CloseNow()
@@ -837,7 +848,7 @@ func main() {
 		manager.join(r.Context(), w, lobbyID, playerName, c)
 	})
 
-	log.Printf("Starting server on %s", listen)
+	logger.Info("Starting server", zap.String("address", listen))
 	if err := http.ListenAndServe(listen, srv); err != nil {
 		panic(err)
 	}
