@@ -781,7 +781,9 @@ func main() {
 		panic(err)
 	}
 
-	statsd, err := statsd.New("localhost:8125", statsd.WithNamespace("buldan.server"))
+	statsd, err := statsd.New("localhost:8125",
+		statsd.WithNamespace("buldan.server"),
+		statsd.WithErrorHandler(func(err error) { logger.Error("Statsd error", zap.Error(err)) }))
 	if err != nil {
 		logger.Fatal("failed to create statsd client", zap.Error(err))
 	}

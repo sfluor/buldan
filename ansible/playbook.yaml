@@ -54,6 +54,8 @@
         dest: "{{repo_root}}"
 
     - name: Build the server
+      tags:
+        - app
       command: >
         {{repo_root}}/scripts/build
 
@@ -146,6 +148,8 @@
           group: root
 
       - name: Start buldan
+        tags:
+          - app
         service:
           name: buldan
           state: restarted
