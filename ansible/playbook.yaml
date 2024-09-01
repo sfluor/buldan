@@ -11,8 +11,42 @@
 
     - name: Setup the Datadog agent
       become: true
+      tags:
+        - observability
+      vars:
+        datadog_config:
+          logs_enabled: true
       import_role:
         name: datadog.dd.agent
+
+    - name: Create the datadog agent log conf directory
+      become: true
+      tags:
+        - observability
+      ansible.builtin.file:
+        path: /etc/datadog-agent/conf.d/buldan.d
+        state: directory
+        mode: '0755'
+        owner: dd-agent
+        group: dd-agent
+
+    - name: Create datadog-agent log conf
+      become: true
+      tags:
+        - observability
+      copy:
+        src: ddlog.conf.yaml
+        dest: /etc/datadog-agent/conf.d/buldan.d/conf.yaml
+        owner: dd-agent
+        group: dd-agent
+
+    - name: Restart the datadog agent
+      become: true
+      tags:
+        - observability
+      service:
+        name: datadog-agent
+        state: restarted
 
     - name: Checkout repository
       ansible.builtin.git:
@@ -40,7 +74,7 @@
         service:
           name: nginx
           state: started
-          enabled: yes
+          enabled: true
 
       - name: Install Certbot and the Nginx plugin
         apt:
@@ -102,7 +136,7 @@
         service:
           name: nginx
           state: started
-          enabled: yes
+          enabled: true
 
       - name: Setup systemd for server
         copy:
@@ -115,6 +149,7 @@
         service:
           name: buldan
           state: restarted
+          daemon_reload: true
 
       become: true
 

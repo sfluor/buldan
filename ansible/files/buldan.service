@@ -5,7 +5,7 @@ Description=Buldan
 User=ubuntu
 Group=ubuntu
 ExecStart=/home/ubuntu/buldan/server/bin/server /home/ubuntu/buldan/buldan-front/dist/
-StandardOutput=append:/var/log/buldan/log.log
+StandardOutput=append:/var/log/buldan.log
 StandardError=inherit
 Restart=always
 
