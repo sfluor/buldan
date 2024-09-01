@@ -151,8 +151,6 @@ func newLetters(lang Language) ([]byte, error) {
 		letters[i], letters[j] = letters[j], letters[i]
 	})
 
-	// TODO: remove me once we finished testing
-	letters[0] = 'z'
 	return letters, nil
 }
 
