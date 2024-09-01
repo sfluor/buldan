@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/zap"
 	"nhooyr.io/websocket"
 )
@@ -785,6 +786,15 @@ func (lm *lobbyManager) join(
 func main() {
 	srv := http.NewServeMux()
 	api := http.NewServeMux()
+	logger, err := zap.NewProduction()
+	if err != nil {
+		panic(err)
+	}
+
+	statsd, err := statsd.New("localhost:8125", statsd.WithNamespace("buldan.server"))
+	if err != nil {
+		logger.Fatal("failed to create statsd client", zap.Error(err))
+	}
 
 	statics := os.Args[1]
 	listen := ":8080"
@@ -792,12 +802,11 @@ func main() {
 		listen = os.Args[2]
 	}
 
-	logger, _ := zap.NewProduction()
-
 	fs := http.FileServer(http.Dir(statics))
 
 	// https://stackoverflow.com/a/64687181, routing to SPA
 	srv.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		statsd.Count("spa_fetches", 1, nil, 1)
 		// If the requested file exists then return if; otherwise return index.html (fileserver default page)
 		if r.URL.Path != "/" {
 			fullPath := statics + strings.TrimPrefix(path.Clean(r.URL.Path), "/")
