@@ -189,7 +189,7 @@ func (l *lobby) maybeBroadcastTick(ctx context.Context, period int) error {
 		round.currentPlayerRemainingSec -= period
 		if round.currentPlayerRemainingSec <= 0 {
 			player := l.players[round.CurrentPlayerIndex]
-			round.PlayersStatuses[player.Name].RemainingGuesses = 0
+			round.PlayersStatuses[player.Name].RemainingGuesses -= 1
 			return l.nextPlayerAndMaybeNewRound(ctx, round)
 		}
 
@@ -790,7 +790,7 @@ func main() {
 		manager.join(r.Context(), w, lobbyID, playerName, c)
 	})
 
-    log.Printf("Starting server on %s",listen)
+	log.Printf("Starting server on %s", listen)
 	if err := http.ListenAndServe(listen, srv); err != nil {
 		panic(err)
 	}
