@@ -78,7 +78,8 @@ type PlayerStatus struct {
 }
 
 type Round struct {
-	Round int
+	Round     int
+	MaxRounds int
 
 	PlayersStatuses map[string]*PlayerStatus
 
@@ -108,6 +109,8 @@ type EventRound struct {
 }
 
 type EventRoundEnd struct {
+	Round     int
+	MaxRounds int
 	Type      EventType
 	Letter    string
 	Countries []CountryStatus
@@ -410,6 +413,8 @@ func (l *lobby) newRoundUnsafe(ctx context.Context) error {
 		currentPlayerIndex = (lastRound.CurrentPlayerIndex + 1) % len(l.players)
 
 		endRound := EventRoundEnd{
+			Round:     lastRound.Round,
+			MaxRounds: lastRound.MaxRounds,
 			Type:      EventTypeEndRound,
 			Letter:    lastRound.Letter,
 			Guesses:   lastRound.Guesses,
@@ -444,6 +449,7 @@ func (l *lobby) newRoundUnsafe(ctx context.Context) error {
 
 	round := Round{
 		Round:                     len(l.rounds) + 1,
+		MaxRounds:                 l.opts.Rounds,
 		Letter:                    string(letter),
 		CurrentPlayerIndex:        currentPlayerIndex,
 		currentPlayerRemainingSec: l.opts.GuessTimeSeconds,

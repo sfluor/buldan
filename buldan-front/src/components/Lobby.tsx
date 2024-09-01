@@ -43,6 +43,8 @@ export interface GameOptions {
 }
 
 export interface RoundState {
+  Round: number;
+  MaxRounds: number;
   Guesses: Guess[];
   Letter: string;
   PlayersStatuses: Record<string, PlayerStatus>;
@@ -57,6 +59,8 @@ export interface Country {
 }
 
 export interface EndRound {
+  Round: number;
+  MaxRounds: number;
   Letter: string;
   Guesses: Guess[];
   Countries: Country[];
@@ -167,6 +171,8 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
   }, [notif, setLocation, setRound, setPlayers, setRemainingSec]);
 
   let component;
+  let currentRound;
+  let maxRounds;
   if (round === null && endRound === null) {
     component = (
       <LobbyWaitRoom
@@ -186,10 +192,14 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
         remainingSec={remainingSec}
       />
     );
+    currentRound = round.Round;
+    maxRounds = round.MaxRounds;
   } else if (endRound != null) {
     component = (
       <LobbyRoundEnd remainingSec={remainingSec} endRound={endRound} />
     );
+    currentRound = endRound.Round;
+    maxRounds = endRound.MaxRounds;
   } else {
     component = <div> Unexpected lobby state ! </div>;
   }
@@ -197,7 +207,12 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
   return (
     <div className="p-4">
       <BuldanText />
-      <LobbyHeader shareUrl={shareUrl} id={id} />
+      <LobbyHeader
+        shareUrl={shareUrl}
+        id={id}
+        currentRound={currentRound}
+        maxRounds={maxRounds}
+      />
 
       {component}
 
@@ -206,7 +221,17 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
   );
 }
 
-function LobbyHeader({ id, shareUrl }: { id: string; shareUrl: string }) {
+function LobbyHeader({
+  id,
+  shareUrl,
+  currentRound,
+  maxRounds,
+}: {
+  id: string;
+  shareUrl: string;
+  currentRound?: number;
+  maxRounds?: number;
+}) {
   return (
     <div className="p-4 my-4 text-lg bg-indigo-100 rounded-md">
       {" "}
@@ -217,6 +242,7 @@ function LobbyHeader({ id, shareUrl }: { id: string; shareUrl: string }) {
       >
         {" "}
         Lobby {id}
+        {maxRounds ? ` | Round ${currentRound}/${maxRounds}` : ""}
       </a>
     </div>
   );

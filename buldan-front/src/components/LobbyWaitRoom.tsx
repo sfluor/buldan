@@ -81,7 +81,7 @@ export default function LobbyWaitRoom({
                 type="number"
                 value={rounds}
                 min={3}
-                max={10}
+                max={20}
                 onChange={(e) => setRounds(e.target.value)}
                 label="Max rounds"
               />
