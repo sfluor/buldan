@@ -1,5 +1,6 @@
 ## Buldan
 
+https://buldan.scobalt.cc/
 
 ### todos
 
