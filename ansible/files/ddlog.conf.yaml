@@ -1,0 +1,5 @@
+logs:
+  - type: file
+    path: "/var/log/buldan.log"
+    service: "buldan"
+    source: "buldan"
