@@ -183,7 +183,6 @@ func (l *lobby) broadcastJSON(ctx context.Context, data any) error {
 }
 
 func (l *lobby) maybeBroadcastTick(ctx context.Context, period int) error {
-	// TODO
 	l.Lock()
 	defer l.Unlock()
 
@@ -287,7 +286,6 @@ func (l *lobby) hardDisconnect(player string) error {
 				return err
 			}
 
-			// TODO dedupe this with above
 			// If the player was this one move to the next player
 			if wasPlaying {
 				return l.nextPlayerAndMaybeNewRound(context.Background(), round)
@@ -431,7 +429,6 @@ func (l *lobby) addPlayer(ctx context.Context, name string, conn *websocket.Conn
 }
 
 func (l *lobby) newRoundUnsafe(ctx context.Context) error {
-	// TODO Careful of too many rounds
 	letter := l.letters[len(l.rounds)]
 	countries, err := countriesStartingWith(l.opts.Language, byte(letter))
 	if err != nil {
@@ -596,11 +593,6 @@ func (l *lobby) handleGuess(ctx context.Context, from string, guess string) erro
 	}
 
 	// TODO: hints
-	// TODO: time
-
-	// TODO end-round
-	// TODO flag
-
 	return l.broadcastJSON(ctx, EventRound{
 		Type:    EventTypeRoundUpdate,
 		Round:   round,
@@ -616,8 +608,6 @@ func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent
 		if l.isAdmin(from) {
 			l.started = true
 			l.opts = clientEvent.Options
-			// todo: remove me
-			l.opts.Rounds = 1
 
 			letters, err := newLetters(l.opts.Language)
 			if err != nil {
