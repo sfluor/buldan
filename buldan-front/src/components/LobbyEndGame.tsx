@@ -1,6 +1,5 @@
 import { useLocation } from "wouter";
 import Button from "./Button";
-import { mainViewCols } from "./constants";
 import { createLobby, Player } from "./Lobby";
 import PlayerBoxes from "./PlayerBoxes";
 

@@ -674,7 +674,7 @@ func (lm *lobbyManager) create() string {
 
 	lobby := &lobby{id: id,
 		state: lobbyStateWaitRoom,
-        lg: lm.lg.With(zap.String(lobbyIDKey, id)),
+		lg:    lm.lg.With(zap.String(lobbyIDKey, id)),
 		close: func() {
 			lm.Lock()
 			defer lm.Unlock()

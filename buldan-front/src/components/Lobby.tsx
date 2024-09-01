@@ -213,9 +213,12 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
         user={user}
         shareUrl={shareUrl}
         onCopyLink={() =>
-          notify({
-            message: "Successfully copied lobby link to the clipboard !",
-          })
+          notify(
+            {
+              message: "Successfully copied lobby link to the clipboard !",
+            },
+            false,
+          )
         }
         startGame={startGame}
       />
