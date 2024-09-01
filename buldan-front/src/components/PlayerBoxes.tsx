@@ -8,7 +8,7 @@ export default function PlayerBoxes({
   user,
 }: {
   players: Player[];
-  current: string;
+  current?: string;
   playersStatuses?: Record<string, PlayerStatus>;
   user: string;
 }) {

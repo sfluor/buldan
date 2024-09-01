@@ -102,6 +102,11 @@ type EventTick struct {
 	RemainingSec int
 }
 
+type EventEnd struct {
+	Type    EventType
+	Players []*Player
+}
+
 type EventRound struct {
 	Type    EventType
 	Round   *Round
@@ -109,12 +114,13 @@ type EventRound struct {
 }
 
 type EventRoundEnd struct {
-	Round     int
-	MaxRounds int
-	Type      EventType
-	Letter    string
-	Countries []CountryStatus
-	Guesses   []Guess
+	Round       int
+	MaxRounds   int
+	IsLastRound bool
+	Type        EventType
+	Letter      string
+	Countries   []CountryStatus
+	Guesses     []Guess
 }
 
 type Guess struct {
@@ -292,6 +298,29 @@ func (l *lobby) hardDisconnect(player string) error {
 	return fmt.Errorf("Player %s wasn't found for hard-disconnect, this isn't expected", player)
 }
 
+func (l *lobby) closeLobby() error {
+	l.Lock()
+	defer l.Unlock()
+
+	errs := []string{}
+
+	for _, p := range l.players {
+		p.Connected = false
+		if err := p.conn.Close(websocket.StatusNormalClosure, "End of game"); err != nil {
+			errs = append(errs, err.Error())
+		}
+		p.conn = nil
+	}
+
+	l.close()
+
+	if len(errs) > 0 {
+		return fmt.Errorf("had errors while closing lobby: %s", strings.Join(errs, ", "))
+	}
+
+	return nil
+}
+
 func (l *lobby) disconnect(ctx context.Context, player string) error {
 	l.Lock()
 	defer l.Unlock()
@@ -413,12 +442,13 @@ func (l *lobby) newRoundUnsafe(ctx context.Context) error {
 		currentPlayerIndex = (lastRound.CurrentPlayerIndex + 1) % len(l.players)
 
 		endRound := EventRoundEnd{
-			Round:     lastRound.Round,
-			MaxRounds: lastRound.MaxRounds,
-			Type:      EventTypeEndRound,
-			Letter:    lastRound.Letter,
-			Guesses:   lastRound.Guesses,
-			Countries: lastRound.remainingCountries.status(),
+			Round:       lastRound.Round,
+			MaxRounds:   lastRound.MaxRounds,
+			IsLastRound: lastRound.Round >= lastRound.MaxRounds,
+			Type:        EventTypeEndRound,
+			Letter:      lastRound.Letter,
+			Guesses:     lastRound.Guesses,
+			Countries:   lastRound.remainingCountries.status(),
 		}
 
 		l.state = lobbyStateBetweenRounds
@@ -442,6 +472,16 @@ func (l *lobby) newRoundUnsafe(ctx context.Context) error {
 			}); err != nil {
 				return err
 			}
+		}
+		if endRound.IsLastRound {
+			if err := l.broadcastJSON(ctx, EventEnd{
+				Type:    EventTypeEnd,
+				Players: l.players,
+			}); err != nil {
+				return err
+			}
+
+			return l.closeLobby()
 		}
 	}
 
@@ -574,6 +614,8 @@ func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent
 		if l.isAdmin(from) {
 			l.started = true
 			l.opts = clientEvent.Options
+			// todo: remove me
+			l.opts.Rounds = 1
 
 			letters, err := newLetters(l.opts.Language)
 			if err != nil {
@@ -581,7 +623,6 @@ func (l *lobby) handle(ctx context.Context, from string, clientEvent ClientEvent
 			}
 			l.letters = letters
 
-			// TODO respect options
 			log.Printf("Starting with game options: %+v", l.opts)
 
 			if err := l.newRound(ctx); err != nil {

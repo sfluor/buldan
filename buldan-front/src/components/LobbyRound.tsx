@@ -35,6 +35,11 @@ export default function LobbyRound({
   const remainingGuesses =
     round.PlayersStatuses[currentPlayer].RemainingGuesses;
 
+  const onGuess = () => {
+    sendGuess(guess);
+    setGuess(round.Letter);
+  };
+
   return (
     <>
       <div>
@@ -45,8 +50,12 @@ export default function LobbyRound({
 
       {isPlaying && (
         <>
-          <Input value={guess} onChange={(e) => setGuess(e.target.value)} />
-          <Button className="m-4" onClick={() => sendGuess(guess)}>
+          <Input
+            value={guess}
+            onEnter={onGuess}
+            onChange={(e) => setGuess(e.target.value)}
+          />
+          <Button className="m-4" onClick={onGuess}>
             Guess !
           </Button>
         </>

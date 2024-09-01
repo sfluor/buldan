@@ -6,7 +6,7 @@ import Input from "./Input";
 import { mainViewCols } from "./constants";
 import Select from "./Select";
 
-function share(url: string, title: string) {
+function share(url: string, title: string, onCopyLink: () => void) {
   if (navigator.share) {
     navigator.share({ url, title }).then(
       () => console.log("Successfully shared"),
@@ -17,7 +17,10 @@ function share(url: string, title: string) {
     );
   } else if (navigator.clipboard) {
     navigator.clipboard.writeText(url).then(
-      () => console.log("Successfully copied data to clipboard"),
+      () => {
+        onCopyLink();
+        console.log("Successfully copied data to clipboard");
+      },
       (err) => {
         console.error("Failed to copy to clipboard", err);
         alert("Copy to clipboard failed");
@@ -40,11 +43,13 @@ export default function LobbyWaitRoom({
   players,
   user,
   shareUrl,
+  onCopyLink,
   startGame,
 }: {
   players: Player[];
   user: string;
   shareUrl: string;
+  onCopyLink: () => void;
   startGame: (options: GameOptions) => void;
 }) {
   const isAdmin = players.find((player) => player.Name === user)?.Admin;
@@ -118,7 +123,10 @@ export default function LobbyWaitRoom({
           Start game !
         </Button>
       )}
-      <Button secondary onClick={() => share(shareUrl, "Join Buldan game !")}>
+      <Button
+        secondary
+        onClick={() => share(shareUrl, "Join Buldan game !", onCopyLink)}
+      >
         Share lobby !
       </Button>
     </>

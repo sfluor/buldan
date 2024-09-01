@@ -27,7 +27,8 @@ export default function LobbyRoundEnd({
 }) {
   return (
     <div>
-      End of round ! {remainingSec} seconds before next round...
+      End of round ! {remainingSec} seconds before{" "}
+      {endRound.IsLastRound ? "leaderboard" : "next round"}...
       <div className={mainViewCols}>
         <div>
           <div className="mt-8"> Countries</div>

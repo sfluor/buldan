@@ -3,6 +3,7 @@ export default function Input({
   label,
   value,
   onChange,
+  onEnter,
   min,
   max,
 }: {
@@ -12,6 +13,7 @@ export default function Input({
   max?: number;
   value?: string | number;
   onChange?: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onEnter?: () => void;
 }) {
   const valid = (() => {
     if (value === undefined) {
@@ -49,6 +51,13 @@ export default function Input({
       max={max}
       value={value}
       onChange={onChange}
+      onKeyUp={
+        onEnter
+          ? (event) => {
+              if (event.key === "Enter") onEnter();
+            }
+          : undefined
+      }
       className={`${borderClasses} border-r-8 border-b-8 px-4 py-2 outline-none box transition duration-1000 max-w-80`}
     />
   );

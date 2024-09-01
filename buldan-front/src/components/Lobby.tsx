@@ -1,9 +1,11 @@
 import { useEffect, useRef, useState } from "react";
-import { LOBBY_URL } from "./constants";
+import { LOBBY_URL, SERVER_URL } from "./constants";
 import Toast from "./Toast";
 import { useLocation } from "wouter";
 import LobbyWaitRoom from "./LobbyWaitRoom";
+import axios from "axios";
 import LobbyRound from "./LobbyRound";
+import LobbyEndGame from "./LobbyEndGame";
 import BuldanText from "./BuldanText";
 import LobbyRoundEnd from "./LobbyRoundEnd";
 
@@ -59,12 +61,30 @@ export interface Country {
 }
 
 export interface EndRound {
+  IsLastRound: boolean;
   Round: number;
   MaxRounds: number;
   Letter: string;
   Guesses: Guess[];
   Countries: Country[];
 }
+
+export interface EndGame {
+  Players: Player[];
+}
+
+export const createLobby = async (
+  user: string,
+  setLocation: (url: string) => void,
+) => {
+  try {
+    const res = await axios.post(`${SERVER_URL}/new-lobby`);
+    setLocation(`/lobby/${res.data.id}/${user}`);
+  } catch (error) {
+    console.error(error);
+    alert(`An error occurred ${error}`);
+  }
+};
 
 export default function Lobby({ id, user }: { id: string; user: string }) {
   // TODO: dedupe players and round
@@ -73,6 +93,7 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
   const [notif, setNotif] = useState<Notification | null>(null);
   const [round, setRound] = useState<RoundState | null>(null);
   const [endRound, setEndRound] = useState<EndRound | null>(null);
+  const [endGame, setEndGame] = useState<EndGame | null>(null);
   const [remainingSec, setRemainingSec] = useState<number | null>(null);
 
   // (otherwise not happy about the any)
@@ -120,18 +141,20 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
     };
   }, [url]);
 
+  const notify = (notif: Notification, redirect: boolean) => {
+    setNotif(notif);
+    setTimeout(() => {
+      setNotif(null);
+      if (redirect) {
+        setLocation("/");
+      }
+    }, 5000);
+  };
+
   useEffect(() => {
     if (ws.current === null) {
       return;
     }
-
-    const notifAndRedirect = (notif: Notification) => {
-      setNotif(notif);
-      setTimeout(() => {
-        setNotif(null);
-        setLocation("/");
-      }, 5000);
-    };
 
     ws.current.onmessage = function (event) {
       const json = JSON.parse(event.data);
@@ -139,46 +162,61 @@ export default function Lobby({ id, user }: { id: string; user: string }) {
         setRemainingSec(json.RemainingSec);
       } else if (json.Type === "players") {
         setPlayers([...json.Players]);
-        console.log("Set players", json);
       } else if (json.Type === "new-round" || json.Type === "round-update") {
         setRemainingSec(null);
         setEndRound(null);
         setRound(json.Round);
         setPlayers(json.Players);
-        console.log("Round update", json);
       } else if (json.Type === "end-round") {
         setRemainingSec(null);
         setRound(null);
         setEndRound(json);
-        console.log("end round", json);
+      } else if (json.Type === "end") {
+        setRemainingSec(null);
+        setEndRound(null);
+        setRound(null);
+        setEndGame(json);
       } else {
-        notifAndRedirect({
-          message: `Unknown payload received ${json.Type}: ${event.data}`,
-          error: true,
-        });
+        notify(
+          {
+            message: `Unknown payload received ${json.Type}: ${event.data}`,
+            error: true,
+          },
+          true,
+        );
       }
     };
 
     ws.current.onclose = function (event) {
       console.warn("Closed websocket", event);
       if (notif === null) {
-        notifAndRedirect({
-          message: `An error occurred: ${event.reason}. Redirecting back home...`,
-          error: true,
-        });
+        notify(
+          {
+            message: `An error occurred: ${event.reason}. Redirecting back home...`,
+            error: true,
+          },
+          true,
+        );
       }
     };
-  }, [notif, setLocation, setRound, setPlayers, setRemainingSec]);
+  }, [notify, setLocation, setRound, setPlayers, setRemainingSec]);
 
   let component;
   let currentRound;
   let maxRounds;
-  if (round === null && endRound === null) {
+  if (endGame != null) {
+    component = <LobbyEndGame user={user} players={endGame.Players} />;
+  } else if (round === null && endRound === null) {
     component = (
       <LobbyWaitRoom
         players={players}
         user={user}
         shareUrl={shareUrl}
+        onCopyLink={() =>
+          notify({
+            message: "Successfully copied lobby link to the clipboard !",
+          })
+        }
         startGame={startGame}
       />
     );
