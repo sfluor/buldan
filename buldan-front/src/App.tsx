@@ -3,6 +3,7 @@ import Home from "./components/Home";
 import Lobby from "./components/Lobby";
 import { Route, Switch } from "wouter";
 import JoinLobby from "./components/JoinLobby";
+import { VERSION } from "./components/constants";
 
 function App() {
   return (
@@ -17,6 +18,7 @@ function App() {
           {({ id, user }) => <Lobby id={id} user={user} />}
         </Route>
       </Switch>
+      <div>Version: {VERSION}</div>
     </>
   );
 }

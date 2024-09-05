@@ -21,11 +21,13 @@ export const strongRedTxt = "text-red-700";
 
 export const mainViewCols = "grid md:grid-cols-2 grid-cols-1";
 
-// TODO
 const env = process.env.NODE_ENV;
 export const HOST =
   env === "development" ? "localhost:8080" : window.location.host;
 
+export const VERSION = "a";
+console.log(process.env.NODE_ENV);
+// export const VERSION = process.env.BULDAN_VERSION;
 const PROTOCOL = window.location.protocol;
 export const SERVER_URL = `${PROTOCOL}//${HOST}/api`;
 
