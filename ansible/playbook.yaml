@@ -49,6 +49,8 @@
         state: restarted
 
     - name: Checkout repository
+      tags:
+        - app
       ansible.builtin.git:
         repo: 'https://github.com/sfluor/buldan.git'
         dest: "{{repo_root}}"
