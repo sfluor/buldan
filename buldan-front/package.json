@@ -4,8 +4,8 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "export BULDAN_VERSION=\"$(git rev-parse --short HEAD)-dev\" && vite",
-    "build": "export BULDAN_VERSION=\"$(git rev-parse --short HEAD)\" && tsc -b && vite build",
+    "dev": "export VITE_BULDAN_VERSION=\"$(git rev-parse --short HEAD)-dev\" && echo $VITE_BULDAN_VERSION && vite",
+    "build": "export VITE_BULDAN_VERSION=\"$(git rev-parse --short HEAD)\" && tsc -b && vite build",
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview"
   },

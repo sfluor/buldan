@@ -6,8 +6,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Buldan</title>
   </head>
-  <body class="container mx-auto p-8 bg-slate-50 font-sans">
-    <div id="root"></div>
+  <body class="container h-screen mx-auto p-8 bg-slate-50 font-sans">
+    <!-- h-px obscure setting to have the container's height be inheritable from the childs -->
+    <div id="root" class="min-h-full h-px"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

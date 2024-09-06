@@ -7,7 +7,7 @@ import { VERSION } from "./components/constants";
 
 function App() {
   return (
-    <>
+    <div className="flex flex-col min-h-full">
       <Switch>
         <Route path="/">
           {" "}
@@ -18,8 +18,8 @@ function App() {
           {({ id, user }) => <Lobby id={id} user={user} />}
         </Route>
       </Switch>
-      <div>Version: {VERSION}</div>
-    </>
+      <a className="p-2 mt-auto justify-self-end self-end text-blue-500 underline hover:text-blue-700 transition-colors duration-300" href={`https://github.com/sfluor/buldan/commit/${VERSION.split("-")[0]}`}>Version: {VERSION}</a>
+    </div>
   );
 }
 
