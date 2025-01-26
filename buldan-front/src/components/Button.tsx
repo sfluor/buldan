@@ -6,7 +6,7 @@ const buttonBaseClass =
 const primaryClass = `${primaryColor} hover:bg-blue-300 border-blue-700 hover:border-blue-500`;
 const secondaryClass = `${secondaryColor} hover:bg-indigo-300 border-indigo-700 hover:border-indigo-500`;
 
-const primaryButton = `${buttonBaseClass} ${primaryClass}`;
+export const primaryButton = `${buttonBaseClass} ${primaryClass}`;
 const secondaryButton = `${buttonBaseClass} ${secondaryClass}`;
 
 function Button({
